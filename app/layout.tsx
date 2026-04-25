@@ -5,7 +5,6 @@ import { Providers } from './providers'
 import Header from "./components/header/Header";
 import Footer from "./components/footer/Footer";
 import { Toaster } from 'react-hot-toast';
-import { Analytics } from "@vercel/analytics/next"
 
 const geistSans = Inter({
   variable: "--font-geist-sans",
@@ -45,7 +44,6 @@ export default function RootLayout({
               }}
             />
             {children}
-            <Analytics />
           </main>
           <Footer />
         </Providers>

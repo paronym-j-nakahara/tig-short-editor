@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>TIG CMS iframe host (POC)</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #111; color: #eee; }
+    header { padding: 10px 16px; background: #000; border-bottom: 1px solid #333; }
+    header h1 { margin: 0; font-size: 14px; font-weight: 500; color: #fff; }
+    header p { margin: 4px 0 0; font-size: 12px; color: #888; }
+    .controls { padding: 10px 16px; background: #1a1a1a; border-bottom: 1px solid #333; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+    .controls label { display: flex; align-items: center; gap: 6px; color: #aaa; }
+    .controls input { padding: 6px 10px; background: #0a0a0a; border: 1px solid #444; color: #eee; border-radius: 4px; min-width: 400px; font-family: monospace; font-size: 12px; }
+    .controls button { padding: 6px 12px; background: #0070f3; border: none; color: #fff; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .controls button:hover { background: #0059c1; }
+    .controls button.secondary { background: #333; }
+    .controls button.secondary:hover { background: #444; }
+    #log { padding: 6px 16px; background: #050505; border-bottom: 1px solid #333; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; max-height: 140px; overflow-y: auto; line-height: 1.5; }
+    #log .row { padding: 1px 0; }
+    #log .send { color: #4ade80; }
+    #log .recv { color: #60a5fa; }
+    #log .info { color: #fbbf24; }
+    #log .err  { color: #f87171; }
+    iframe { width: 100%; height: calc(100vh - 240px); border: none; background: #000; display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TIG CMS iframe host (POC)</h1>
+    <p>tig-short-editor を iframe で埋め込む検証用のスタンドアロン HTML。CMS 側ページを模倣しているのだ。</p>
+  </header>
+  <div class="controls">
+    <label>
+      iframe src:
+      <input id="src" value="http://localhost:4000/projects/" />
+    </label>
+    <button onclick="reload()">Reload iframe</button>
+    <button class="secondary" onclick="sendPing()">Send ping</button>
+    <button class="secondary" onclick="sendSetProject()">Send setProject</button>
+    <button class="secondary" onclick="sendRequestExport()">Send requestExport</button>
+  </div>
+  <div id="log"></div>
+  <iframe id="editor" src="http://localhost:4000/projects/" allow="clipboard-read; clipboard-write; autoplay; fullscreen"></iframe>
+
+  <script>
+    const iframe = document.getElementById('editor');
+    const srcInput = document.getElementById('src');
+    const logEl = document.getElementById('log');
+
+    function log(msg, cls) {
+      const d = document.createElement('div');
+      d.className = 'row ' + (cls || '');
+      d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.prepend(d);
+    }
+
+    function targetOrigin() {
+      try { return new URL(srcInput.value).origin; } catch (e) { return '*'; }
+    }
+
+    function reload() {
+      iframe.src = srcInput.value;
+      log(`iframe reloaded: ${srcInput.value}`, 'info');
+    }
+
+    function sendPing() {
+      const origin = targetOrigin();
+      const payload = { type: 'ping', ts: Date.now() };
+      iframe.contentWindow.postMessage(payload, origin);
+      log(`send → ${origin}: ${JSON.stringify(payload)}`, 'send');
+    }
+
+    function sendSetProject() {
+      const origin = targetOrigin();
+      const payload = {
+        type: 'setProject',
+        project: {
+          id: 'demo-project',
+          name: 'CMS 想定プロジェクト',
+          assets: [
+            { kind: 'video', url: 'https://example.com/signed-url/video.mp4', duration: 10 }
+          ]
+        }
+      };
+      iframe.contentWindow.postMessage(payload, origin);
+      log(`send → ${origin}: setProject (demo payload)`, 'send');
+    }
+
+    function sendRequestExport() {
+      const origin = targetOrigin();
+      const payload = {
+        type: 'requestExport',
+        uploadUrl: 'https://example.com/signed-put-url',
+        resolution: '1080p'
+      };
+      iframe.contentWindow.postMessage(payload, origin);
+      log(`send → ${origin}: requestExport`, 'send');
+    }
+
+    window.addEventListener('message', (e) => {
+      const preview = typeof e.data === 'string' ? e.data : JSON.stringify(e.data);
+      log(`recv ← ${e.origin}: ${preview.slice(0, 200)}`, 'recv');
+    });
+
+    iframe.addEventListener('load', () => log('iframe loaded', 'info'));
+    iframe.addEventListener('error', (e) => log(`iframe error: ${e.message || 'unknown'}`, 'err'));
+
+    log('host ready. Open DevTools (F12) for full console output.', 'info');
+  </script>
+</body>
+</html>

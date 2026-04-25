@@ -1,54 +1,63 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { getFile, storeProject, useAppDispatch, useAppSelector } from "../../../store";
-import { getProject } from "../../../store";
-import { setCurrentProject, updateProject } from "../../../store/slices/projectsSlice";
-import { rehydrate, setMediaFiles } from '../../../store/slices/projectSlice';
-import { setActiveSection } from "../../../store/slices/projectSlice";
-import AddText from '../../../components/editor/AssetsPanel/tools-section/AddText';
-import AddMedia from '../../../components/editor/AssetsPanel/AddButtons/UploadMedia';
-import MediaList from '../../../components/editor/AssetsPanel/tools-section/MediaList';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from "react";
+import { getFile, storeProject, useAppDispatch, useAppSelector } from "../../store";
+import { getProject } from "../../store";
+import { createBlankProject } from "../../store/projectFactory";
+import { addProject, setCurrentProject, updateProject } from "../../store/slices/projectsSlice";
+import { rehydrate, setMediaFiles } from '../../store/slices/projectSlice';
+import { setActiveSection } from "../../store/slices/projectSlice";
+import AddText from '../../components/editor/AssetsPanel/tools-section/AddText';
+import AddMedia from '../../components/editor/AssetsPanel/AddButtons/UploadMedia';
+import MediaList from '../../components/editor/AssetsPanel/tools-section/MediaList';
+import { useSearchParams } from 'next/navigation';
 import TextButton from "@/app/components/editor/AssetsPanel/SidebarButtons/TextButton";
 import LibraryButton from "@/app/components/editor/AssetsPanel/SidebarButtons/LibraryButton";
 import ExportButton from "@/app/components/editor/AssetsPanel/SidebarButtons/ExportButton";
 import HomeButton from "@/app/components/editor/AssetsPanel/SidebarButtons/HomeButton";
-import ShortcutsButton from "@/app/components/editor/AssetsPanel/SidebarButtons/ShortcutsButton";
-import MediaProperties from "../../../components/editor/PropertiesSection/MediaProperties";
-import TextProperties from "../../../components/editor/PropertiesSection/TextProperties";
-import { Timeline } from "../../../components/editor/timeline/Timline";
-import { PreviewPlayer } from "../../../components/editor/player/remotion/Player";
+import MediaProperties from "../../components/editor/PropertiesSection/MediaProperties";
+import TextProperties from "../../components/editor/PropertiesSection/TextProperties";
+import { Timeline } from "../../components/editor/timeline/Timline";
+import { PreviewPlayer } from "../../components/editor/player/remotion/Player";
 import { MediaFile } from "@/app/types";
-import ExportList from "../../../components/editor/AssetsPanel/tools-section/ExportList";
+import ExportList from "../../components/editor/AssetsPanel/tools-section/ExportList";
 import Image from "next/image";
-import ProjectName from "../../../components/editor/player/ProjectName";
-export default function Project({ params }: { params: { id: string } }) {
-    const { id } = params;
+import ProjectName from "../../components/editor/player/ProjectName";
+
+function EditorInner() {
+    const searchParams = useSearchParams();
+    const id = searchParams.get("id");
     const dispatch = useAppDispatch();
     const projectState = useAppSelector((state) => state.projectState);
     const { currentProjectId } = useAppSelector((state) => state.projects);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    const router = useRouter();
     const { activeSection, activeElement } = projectState;
-    // when page is loaded set the project id if it exists
+
     useEffect(() => {
         const loadProject = async () => {
-            if (id) {
-                setIsLoading(true);
-                const project = await getProject(id);
-                if (project) {
-                    dispatch(setCurrentProject(id));
-                    setIsLoading(false);
-                } else {
-                    router.push('/404');
-                }
+            if (typeof window === 'undefined') return;
+
+            if (!id) {
+                setError('Project ID is required.');
+                setIsLoading(false);
+                return;
             }
+
+            setIsLoading(true);
+            const existing = await getProject(id);
+            if (existing) {
+                dispatch(setCurrentProject(id));
+            } else {
+                const project = createBlankProject(id);
+                await storeProject(project);
+                dispatch(addProject(project));
+            }
+            setIsLoading(false);
         };
         loadProject();
     }, [id, dispatch]);
 
-    // set project state from with the current project id
     useEffect(() => {
         const loadProject = async () => {
             if (currentProjectId) {
@@ -59,6 +68,9 @@ export default function Project({ params }: { params: { id: string } }) {
                     dispatch(setMediaFiles(await Promise.all(
                         project.mediaFiles.map(async (media: MediaFile) => {
                             const file = await getFile(media.fileId);
+                            if (!file) {
+                                return { ...media, src: "" };
+                            }
                             return { ...media, src: URL.createObjectURL(file) };
                         })
                     )));
@@ -68,25 +80,32 @@ export default function Project({ params }: { params: { id: string } }) {
         loadProject();
     }, [dispatch, currentProjectId]);
 
-
-    // save
     useEffect(() => {
         const saveProject = async () => {
-            if (!projectState || projectState.id != currentProjectId) return;
+            if (!projectState || projectState.id !== currentProjectId) return;
             await storeProject(projectState);
             dispatch(updateProject(projectState));
         };
         saveProject();
-    }, [projectState, dispatch]);
-
+    }, [projectState, currentProjectId, dispatch]);
 
     const handleFocus = (section: "media" | "text" | "export") => {
         dispatch(setActiveSection(section));
     };
 
+    if (error) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-black text-white">
+                <div className="text-center px-6">
+                    <h1 className="text-2xl font-bold mb-2">Error</h1>
+                    <p className="text-gray-300">{error}</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-screen select-none">
-            {/* Loading screen */}
             {
                 isLoading ? (
                     <div className="fixed inset-0 flex items-center bg-black bg-opacity-50 justify-center z-50">
@@ -98,19 +117,15 @@ export default function Project({ params }: { params: { id: string } }) {
                 ) : null
             }
             <div className="flex flex-1 overflow-hidden">
-                {/* Left Sidebar - Buttons */}
                 <div className="flex-[0.1] min-w-[60px] max-w-[100px] border-r border-gray-700 overflow-y-auto p-4">
                     <div className="flex flex-col space-y-2">
                         <HomeButton />
                         <TextButton onClick={() => handleFocus("text")} />
                         <LibraryButton onClick={() => handleFocus("media")} />
                         <ExportButton onClick={() => handleFocus("export")} />
-                        {/* TODO: add shortcuts guide but in a better way */}
-                        {/* <ShortcutsButton onClick={() => handleFocus("export")} /> */}
                     </div>
                 </div>
 
-                {/* Add media and text */}
                 <div className="flex-[0.3] min-w-[200px] border-r border-gray-800 overflow-y-auto p-4">
                     {activeSection === "media" && (
                         <div>
@@ -133,13 +148,11 @@ export default function Project({ params }: { params: { id: string } }) {
                     )}
                 </div>
 
-                {/* Center - Video Preview */}
                 <div className="flex items-center justify-center flex-col flex-[1] overflow-hidden">
                     <ProjectName />
                     <PreviewPlayer />
                 </div>
 
-                {/* Right Sidebar - Element Properties */}
                 <div className="flex-[0.4] min-w-[200px] border-l border-gray-800 overflow-y-auto p-4">
                     {activeElement === "media" && (
                         <div>
@@ -155,10 +168,8 @@ export default function Project({ params }: { params: { id: string } }) {
                     )}
                 </div>
             </div>
-            {/* Timeline at bottom */}
             <div className="flex flex-row border-t border-gray-500">
                 <div className=" bg-darkSurfacePrimary flex flex-col items-center justify-center mt-20">
-
                     <div className="relative h-16">
                         <div className="flex items-center gap-2 p-4">
                             <Image
@@ -170,7 +181,6 @@ export default function Project({ params }: { params: { id: string } }) {
                             />
                         </div>
                     </div>
-
                     <div className="relative h-16">
                         <div className="flex items-center gap-2 p-4">
                             <Image
@@ -182,7 +192,6 @@ export default function Project({ params }: { params: { id: string } }) {
                             />
                         </div>
                     </div>
-
                     <div className="relative h-16">
                         <div className="flex items-center gap-2 p-4">
                             <Image
@@ -194,7 +203,6 @@ export default function Project({ params }: { params: { id: string } }) {
                             />
                         </div>
                     </div>
-
                     <div className="relative h-16">
                         <div className="flex items-center gap-2 p-4">
                             <Image
@@ -209,6 +217,21 @@ export default function Project({ params }: { params: { id: string } }) {
                 </div>
                 <Timeline />
             </div>
-        </div >
+        </div>
+    );
+}
+
+export default function EditorPage() {
+    return (
+        <Suspense fallback={
+            <div className="fixed inset-0 flex items-center bg-black bg-opacity-50 justify-center z-50">
+                <div className="bg-black bg-opacity-70 p-6 rounded-lg flex flex-col items-center">
+                    <div className="w-16 h-16 border-4 border-t-white border-r-white border-opacity-30 border-t-opacity-100 rounded-full animate-spin"></div>
+                    <p className="mt-4 text-white text-lg">Loading editor...</p>
+                </div>
+            </div>
+        }>
+            <EditorInner />
+        </Suspense>
     );
 }
