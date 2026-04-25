@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAppDispatch, useAppSelector } from '../../store';
 import { addProject, deleteProject, rehydrateProjects, setCurrentProject } from '../../store/slices/projectsSlice';
 import { listProjects, storeProject, deleteProject as deleteProjectFromDB } from '../../store';
-import { ProjectState } from '../../types';
+import { createBlankProject } from '../../store/projectFactory';
 import { toast } from 'react-hot-toast';
 export default function Projects() {
     const dispatch = useAppDispatch();
@@ -41,39 +41,7 @@ export default function Projects() {
     const handleCreateProject = async () => {
         if (!newProjectName.trim()) return;
 
-        // TODO: use reducer not this to create new project
-        const newProject: ProjectState = {
-            id: crypto.randomUUID(),
-            projectName: newProjectName,
-            createdAt: new Date().toISOString(),
-            lastModified: new Date().toISOString(),
-            mediaFiles: [],
-            textElements: [],
-            currentTime: 0,
-            isPlaying: false,
-            isMuted: false,
-            duration: 0,
-            activeSection: 'media',
-            activeElement: 'text',
-            activeElementIndex: 0,
-            filesID: [],
-            zoomLevel: 1,
-            timelineZoom: 100,
-            enableMarkerTracking: true,
-            resolution: { width: 1920, height: 1080 },
-            fps: 30,
-            aspectRatio: '16:9',
-            history: [],
-            future: [],
-            exportSettings: {
-                resolution: '1080p',
-                quality: 'high',
-                speed: 'fastest',
-                fps: 30,
-                format: 'mp4',
-                includeSubtitles: false,
-            },
-        };
+        const newProject = createBlankProject(crypto.randomUUID(), newProjectName);
 
         await storeProject(newProject);
         dispatch(addProject(newProject));

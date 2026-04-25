@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { getFile, storeProject, useAppDispatch, useAppSelector } from "../../store";
 import { getProject } from "../../store";
+import { createBlankProject } from "../../store/projectFactory";
 import { addProject, setCurrentProject, updateProject } from "../../store/slices/projectsSlice";
 import { rehydrate, setMediaFiles } from '../../store/slices/projectSlice';
 import { setActiveSection } from "../../store/slices/projectSlice";
@@ -17,46 +18,10 @@ import MediaProperties from "../../components/editor/PropertiesSection/MediaProp
 import TextProperties from "../../components/editor/PropertiesSection/TextProperties";
 import { Timeline } from "../../components/editor/timeline/Timline";
 import { PreviewPlayer } from "../../components/editor/player/remotion/Player";
-import { MediaFile, ProjectState } from "@/app/types";
+import { MediaFile } from "@/app/types";
 import ExportList from "../../components/editor/AssetsPanel/tools-section/ExportList";
 import Image from "next/image";
 import ProjectName from "../../components/editor/player/ProjectName";
-
-const createBlankProject = (id: string): ProjectState => {
-    const now = new Date().toISOString();
-    return {
-        id,
-        projectName: 'Untitled Project',
-        createdAt: now,
-        lastModified: now,
-        mediaFiles: [],
-        textElements: [],
-        currentTime: 0,
-        isPlaying: false,
-        isMuted: false,
-        duration: 0,
-        activeSection: 'media',
-        activeElement: 'text',
-        activeElementIndex: 0,
-        filesID: [],
-        zoomLevel: 1,
-        timelineZoom: 100,
-        enableMarkerTracking: true,
-        resolution: { width: 1920, height: 1080 },
-        fps: 30,
-        aspectRatio: '16:9',
-        history: [],
-        future: [],
-        exportSettings: {
-            resolution: '1080p',
-            quality: 'high',
-            speed: 'fastest',
-            fps: 30,
-            format: 'mp4',
-            includeSubtitles: false,
-        },
-    };
-};
 
 function EditorInner() {
     const searchParams = useSearchParams();
@@ -103,6 +68,9 @@ function EditorInner() {
                     dispatch(setMediaFiles(await Promise.all(
                         project.mediaFiles.map(async (media: MediaFile) => {
                             const file = await getFile(media.fileId);
+                            if (!file) {
+                                return { ...media, src: "" };
+                            }
                             return { ...media, src: URL.createObjectURL(file) };
                         })
                     )));
@@ -114,12 +82,12 @@ function EditorInner() {
 
     useEffect(() => {
         const saveProject = async () => {
-            if (!projectState || projectState.id != currentProjectId) return;
+            if (!projectState || projectState.id !== currentProjectId) return;
             await storeProject(projectState);
             dispatch(updateProject(projectState));
         };
         saveProject();
-    }, [projectState, dispatch]);
+    }, [projectState, currentProjectId, dispatch]);
 
     const handleFocus = (section: "media" | "text" | "export") => {
         dispatch(setActiveSection(section));
