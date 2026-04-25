@@ -2,13 +2,13 @@
 import { Suspense, useEffect, useState } from "react";
 import { getFile, storeProject, useAppDispatch, useAppSelector } from "../../store";
 import { getProject } from "../../store";
-import { setCurrentProject, updateProject } from "../../store/slices/projectsSlice";
+import { addProject, setCurrentProject, updateProject } from "../../store/slices/projectsSlice";
 import { rehydrate, setMediaFiles } from '../../store/slices/projectSlice';
 import { setActiveSection } from "../../store/slices/projectSlice";
 import AddText from '../../components/editor/AssetsPanel/tools-section/AddText';
 import AddMedia from '../../components/editor/AssetsPanel/AddButtons/UploadMedia';
 import MediaList from '../../components/editor/AssetsPanel/tools-section/MediaList';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import TextButton from "@/app/components/editor/AssetsPanel/SidebarButtons/TextButton";
 import LibraryButton from "@/app/components/editor/AssetsPanel/SidebarButtons/LibraryButton";
 import ExportButton from "@/app/components/editor/AssetsPanel/SidebarButtons/ExportButton";
@@ -17,11 +17,46 @@ import MediaProperties from "../../components/editor/PropertiesSection/MediaProp
 import TextProperties from "../../components/editor/PropertiesSection/TextProperties";
 import { Timeline } from "../../components/editor/timeline/Timline";
 import { PreviewPlayer } from "../../components/editor/player/remotion/Player";
-import { MediaFile } from "@/app/types";
+import { MediaFile, ProjectState } from "@/app/types";
 import ExportList from "../../components/editor/AssetsPanel/tools-section/ExportList";
 import Image from "next/image";
 import ProjectName from "../../components/editor/player/ProjectName";
-import { toast } from "react-hot-toast";
+
+const createBlankProject = (id: string): ProjectState => {
+    const now = new Date().toISOString();
+    return {
+        id,
+        projectName: 'Untitled Project',
+        createdAt: now,
+        lastModified: now,
+        mediaFiles: [],
+        textElements: [],
+        currentTime: 0,
+        isPlaying: false,
+        isMuted: false,
+        duration: 0,
+        activeSection: 'media',
+        activeElement: 'text',
+        activeElementIndex: 0,
+        filesID: [],
+        zoomLevel: 1,
+        timelineZoom: 100,
+        enableMarkerTracking: true,
+        resolution: { width: 1920, height: 1080 },
+        fps: 30,
+        aspectRatio: '16:9',
+        history: [],
+        future: [],
+        exportSettings: {
+            resolution: '1080p',
+            quality: 'high',
+            speed: 'fastest',
+            fps: 30,
+            format: 'mp4',
+            includeSubtitles: false,
+        },
+    };
+};
 
 function EditorInner() {
     const searchParams = useSearchParams();
@@ -30,25 +65,30 @@ function EditorInner() {
     const projectState = useAppSelector((state) => state.projectState);
     const { currentProjectId } = useAppSelector((state) => state.projects);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    const router = useRouter();
     const { activeSection, activeElement } = projectState;
 
     useEffect(() => {
         const loadProject = async () => {
-            if (id) {
-                setIsLoading(true);
-                const project = await getProject(id);
-                if (project) {
-                    dispatch(setCurrentProject(id));
-                    setIsLoading(false);
-                } else {
-                    toast.error('Project not found');
-                    router.replace('/projects');
-                }
-            } else {
-                router.replace('/projects');
+            if (typeof window === 'undefined') return;
+
+            if (!id) {
+                setError('Project ID is required.');
+                setIsLoading(false);
+                return;
             }
+
+            setIsLoading(true);
+            const existing = await getProject(id);
+            if (existing) {
+                dispatch(setCurrentProject(id));
+            } else {
+                const project = createBlankProject(id);
+                await storeProject(project);
+                dispatch(addProject(project));
+            }
+            setIsLoading(false);
         };
         loadProject();
     }, [id, dispatch]);
@@ -84,6 +124,17 @@ function EditorInner() {
     const handleFocus = (section: "media" | "text" | "export") => {
         dispatch(setActiveSection(section));
     };
+
+    if (error) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-black text-white">
+                <div className="text-center px-6">
+                    <h1 className="text-2xl font-bold mb-2">Error</h1>
+                    <p className="text-gray-300">{error}</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-screen select-none">
