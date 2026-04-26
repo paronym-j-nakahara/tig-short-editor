@@ -5,6 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:dev": "NEXT_PUBLIC_ALLOWED_CMS_ORIGINS=https://cms.tigmedia.jp next build",
+    "build:stg": "NEXT_PUBLIC_ALLOWED_CMS_ORIGINS=https://cms.stg.tigmedia.jp next build",
+    "build:demo": "NEXT_PUBLIC_ALLOWED_CMS_ORIGINS=https://cms.demo.tigmedia.jp next build",
+    "build:prod": "NEXT_PUBLIC_ALLOWED_CMS_ORIGINS=https://cms.tigmedia.jp next build",
     "start": "next start",
     "lint": "next lint"
   },
