@@ -37,21 +37,16 @@ export function _resetKnownParentOrigin(): void {
 
 /**
  * ALLOWED_CMS_ORIGINS を取得する。
- * Phase 1-6 で env 注入に置き換え予定。dev では localhost フォールバックを許可する。
+ *
+ * Phase 1-6 完了後は env 必須（`.env.development` がローカル開発のデフォルトを供給する）。
+ * env 未設定の場合は空配列を返し、`parseInboundMessage` が fail-secure に inbound を全 drop。
+ *
+ * 環境別ビルド: `npm run build:dev|stg|demo|prod` で `NEXT_PUBLIC_ALLOWED_CMS_ORIGINS` を inline 注入。
  */
 export function getAllowedCmsOrigins(): string[] {
     const fromEnv = process.env.NEXT_PUBLIC_ALLOWED_CMS_ORIGINS;
-    if (fromEnv) {
-        return fromEnv.split(",").map((o) => o.trim()).filter(Boolean);
-    }
-    if (process.env.NODE_ENV === "development") {
-        return [
-            "http://localhost:8080",
-            "http://localhost:5500",
-            "http://127.0.0.1:5500",
-        ];
-    }
-    return [];
+    if (!fromEnv) return [];
+    return fromEnv.split(",").map((o) => o.trim()).filter(Boolean);
 }
 
 /**
