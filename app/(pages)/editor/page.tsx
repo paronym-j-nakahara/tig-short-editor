@@ -4,11 +4,12 @@ import { getFile, storeProject, useAppDispatch, useAppSelector } from "../../sto
 import { getProject } from "../../store";
 import { createBlankProject } from "../../store/projectFactory";
 import { addProject, setCurrentProject, updateProject } from "../../store/slices/projectsSlice";
-import { rehydrate, setMediaFiles } from '../../store/slices/projectSlice';
+import { appendFilesID, rehydrate, setMediaFiles } from '../../store/slices/projectSlice';
 import { setActiveSection } from "../../store/slices/projectSlice";
 import { useEmbedMode } from "@/app/lib/useEmbedMode";
 import { usePostMessageBridge } from "@/app/lib/postMessage/usePostMessageBridge";
 import { sendToParent } from "@/app/lib/postMessage/bridge";
+import { loadAssetsFromUrls } from "@/app/lib/postMessage/loadAssets";
 import { EDITOR_VERSION, PROTOCOL_VERSION } from "@/app/lib/postMessage/types";
 import AddText from '../../components/editor/AssetsPanel/tools-section/AddText';
 import AddMedia from '../../components/editor/AssetsPanel/AddButtons/UploadMedia';
@@ -41,17 +42,39 @@ function EditorInner() {
     const { activeSection, activeElement } = projectState;
 
     usePostMessageBridge(embedMode, {
-        onInit: (payload, _msg, senders) => {
-            // Phase 1-3 で assets を S3 から fetch して Redux に展開する。
-            // 現状はエンベロープ疎通確認のため initAck を返すのみ。
+        onInit: async (payload, _msg, senders) => {
             if (process.env.NODE_ENV !== "production") {
                 console.log("[postMessage] init received", payload);
             }
-            senders.sendInitAck({ sessionId: payload.sessionId, ok: true });
+            // S3 GET URL から assets を fetch → IndexedDB に取り込み → filesID に追加。
+            // 失敗した asset は failedAssets として initAck で CMS に返却する。
+            // TODO(Phase 1 後半): onClose / closeRequest 時に embed mode で取り込んだ
+            //   IndexedDB の fileId と blob を deleteFile() で削除すること（残骸防止）
+            try {
+                const incomingAssets = payload.assets ?? [];
+                const { loaded, failed } = await loadAssetsFromUrls(incomingAssets);
+                if (loaded.length > 0) {
+                    dispatch(appendFilesID(loaded.map((l) => l.fileId)));
+                }
+                senders.sendInitAck({
+                    sessionId: payload.sessionId,
+                    ok: true,
+                    ...(failed.length > 0 ? { failedAssets: failed } : {}),
+                });
+            } catch (e) {
+                const message = e instanceof Error ? e.message : "unknown error";
+                senders.sendInitError({
+                    sessionId: payload.sessionId,
+                    ok: false,
+                    code: "INVALID_PAYLOAD",
+                    message,
+                });
+            }
         },
         onClose: (payload) => {
             // CMS から強制クローズ要求。embed mode では CMS が iframe を削除するので
             // 内部状態のクリーンアップのみ行う想定（Phase 1 後半で配線）。
+            // TODO(Phase 1 後半): embed mode で取り込んだ IndexedDB の blob を削除する
             if (process.env.NODE_ENV !== "production") {
                 console.log("[postMessage] close received", payload);
             }
