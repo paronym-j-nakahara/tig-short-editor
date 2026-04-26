@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>TIG CMS iframe host (POC)</title>
+  <title>TIG CMS iframe host (POC v1.2)</title>
   <style>
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #111; color: #eee; }
@@ -11,42 +11,49 @@
     header p { margin: 4px 0 0; font-size: 12px; color: #888; }
     .controls { padding: 10px 16px; background: #1a1a1a; border-bottom: 1px solid #333; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
     .controls label { display: flex; align-items: center; gap: 6px; color: #aaa; }
-    .controls input { padding: 6px 10px; background: #0a0a0a; border: 1px solid #444; color: #eee; border-radius: 4px; min-width: 400px; font-family: monospace; font-size: 12px; }
+    .controls input { padding: 6px 10px; background: #0a0a0a; border: 1px solid #444; color: #eee; border-radius: 4px; min-width: 480px; font-family: monospace; font-size: 12px; }
     .controls button { padding: 6px 12px; background: #0070f3; border: none; color: #fff; border-radius: 4px; cursor: pointer; font-size: 13px; }
     .controls button:hover { background: #0059c1; }
     .controls button.secondary { background: #333; }
     .controls button.secondary:hover { background: #444; }
-    #log { padding: 6px 16px; background: #050505; border-bottom: 1px solid #333; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; max-height: 140px; overflow-y: auto; line-height: 1.5; }
-    #log .row { padding: 1px 0; }
+    .controls button.danger { background: #b91c1c; }
+    .controls button.danger:hover { background: #991b1b; }
+    #log { padding: 6px 16px; background: #050505; border-bottom: 1px solid #333; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; max-height: 180px; overflow-y: auto; line-height: 1.5; }
+    #log .row { padding: 1px 0; white-space: pre-wrap; word-break: break-all; }
     #log .send { color: #4ade80; }
     #log .recv { color: #60a5fa; }
     #log .info { color: #fbbf24; }
     #log .err  { color: #f87171; }
-    iframe { width: 100%; height: calc(100vh - 240px); border: none; background: #000; display: block; }
+    iframe { width: 100%; height: calc(100vh - 280px); border: none; background: #000; display: block; }
   </style>
 </head>
 <body>
   <header>
-    <h1>TIG CMS iframe host (POC)</h1>
-    <p>tig-short-editor を iframe で埋め込む検証用のスタンドアロン HTML。CMS 側ページを模倣しているのだ。</p>
+    <h1>TIG CMS iframe host (POC v1.2)</h1>
+    <p>tig-short-editor を iframe で埋め込む検証用。protocol v1.2 / embed mode 専用なのだ。</p>
   </header>
   <div class="controls">
     <label>
       iframe src:
-      <input id="src" value="http://localhost:4000/projects/" />
+      <input id="src" value="http://localhost:3001/editor/?embed=1&id=11111111-2222-3333-4444-555555555555" />
     </label>
     <button onclick="reload()">Reload iframe</button>
-    <button class="secondary" onclick="sendPing()">Send ping</button>
-    <button class="secondary" onclick="sendSetProject()">Send setProject</button>
-    <button class="secondary" onclick="sendRequestExport()">Send requestExport</button>
+    <button class="secondary" onclick="sendInit('new')">Send init (new)</button>
+    <button class="secondary" onclick="sendInit('edit')">Send init (edit)</button>
+    <button class="secondary" onclick="sendCancelExport()">Send cancelExport</button>
+    <button class="danger" onclick="sendClose()">Send close</button>
   </div>
   <div id="log"></div>
-  <iframe id="editor" src="http://localhost:4000/projects/" allow="clipboard-read; clipboard-write; autoplay; fullscreen"></iframe>
+  <iframe id="editor" src="" allow="clipboard-read; clipboard-write; autoplay; fullscreen"></iframe>
 
   <script>
+    const PROTOCOL = "tig-short-editor";
+    const PROTOCOL_VERSION = "1.2";
+
     const iframe = document.getElementById('editor');
     const srcInput = document.getElementById('src');
     const logEl = document.getElementById('log');
+    let lastSessionId = null;
 
     function log(msg, cls) {
       const d = document.createElement('div');
@@ -56,57 +63,108 @@
     }
 
     function targetOrigin() {
-      try { return new URL(srcInput.value).origin; } catch (e) { return '*'; }
+      try { return new URL(srcInput.value).origin; } catch (e) { return null; }
+    }
+
+    function uuid() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
     }
 
     function reload() {
       iframe.src = srcInput.value;
+      lastSessionId = null;
       log(`iframe reloaded: ${srcInput.value}`, 'info');
     }
 
-    function sendPing() {
+    function send(type, payload, requestId) {
       const origin = targetOrigin();
-      const payload = { type: 'ping', ts: Date.now() };
-      iframe.contentWindow.postMessage(payload, origin);
-      log(`send → ${origin}: ${JSON.stringify(payload)}`, 'send');
+      if (!origin) {
+        log(`send aborted: invalid iframe src origin (no '*' fallback)`, 'err');
+        return;
+      }
+      const message = {
+        protocol: PROTOCOL,
+        version: PROTOCOL_VERSION,
+        type,
+        ...(requestId ? { requestId } : {}),
+        payload,
+      };
+      iframe.contentWindow.postMessage(message, origin);
+      log(`send → ${origin}: ${type}\n  ${JSON.stringify(payload).slice(0, 240)}`, 'send');
     }
 
-    function sendSetProject() {
-      const origin = targetOrigin();
+    function sendInit(mode) {
+      const sessionId = uuid();
+      lastSessionId = sessionId;
+      const requestId = uuid();
       const payload = {
-        type: 'setProject',
-        project: {
-          id: 'demo-project',
-          name: 'CMS 想定プロジェクト',
-          assets: [
-            { kind: 'video', url: 'https://example.com/signed-url/video.mp4', duration: 10 }
-          ]
-        }
+        mode,
+        sessionId,
+        ...(mode === 'edit' ? { contentId: 12345 } : {}),
+        assets: mode === 'edit' ? [
+          {
+            id: 'asset-001',
+            kind: 'video',
+            url: 'https://example.com/signed-get-url/video.mp4',
+            urlExpiresAt: new Date(Date.now() + 7200_000).toISOString(),
+            mime: 'video/mp4',
+            fileName: 'sample.mp4',
+            duration: 15.3,
+            width: 1080,
+            height: 1920,
+          },
+        ] : [],
+        upload: {
+          putUrl: 'https://example.com/signed-put-url/output.mp4',
+          putUrlExpiresAt: new Date(Date.now() + 7200_000).toISOString(),
+          s3Key: `editor-tmp/202604/${sessionId}/output.mp4`,
+          contentType: 'video/mp4',
+          thumbnailPutUrl: 'https://example.com/signed-put-url/thumbnail.webp',
+          thumbnailS3Key: `editor-tmp/202604/${sessionId}/thumbnail.webp`,
+          thumbnailContentType: 'image/webp',
+        },
+        ui: {
+          locale: 'ja',
+          resolution: { width: 1080, height: 1920 },
+          fps: 30,
+          aspectRatio: '9:16',
+        },
       };
-      iframe.contentWindow.postMessage(payload, origin);
-      log(`send → ${origin}: setProject (demo payload)`, 'send');
+      send('init', payload, requestId);
     }
 
-    function sendRequestExport() {
-      const origin = targetOrigin();
-      const payload = {
-        type: 'requestExport',
-        uploadUrl: 'https://example.com/signed-put-url',
-        resolution: '1080p'
-      };
-      iframe.contentWindow.postMessage(payload, origin);
-      log(`send → ${origin}: requestExport`, 'send');
+    function sendCancelExport() {
+      if (!lastSessionId) {
+        log('no sessionId yet — send init first', 'err');
+        return;
+      }
+      send('cancelExport', { sessionId: lastSessionId, reason: 'user' });
+    }
+
+    function sendClose() {
+      send('close', { reason: 'user', message: 'host requested close' });
     }
 
     window.addEventListener('message', (e) => {
-      const preview = typeof e.data === 'string' ? e.data : JSON.stringify(e.data);
-      log(`recv ← ${e.origin}: ${preview.slice(0, 200)}`, 'recv');
+      const data = e.data;
+      // Filter: only show our protocol messages distinctly
+      if (data && typeof data === 'object' && data.protocol === PROTOCOL) {
+        log(`recv ← ${e.origin}: ${data.type}\n  ${JSON.stringify(data.payload).slice(0, 240)}`, 'recv');
+      } else {
+        // ignore non-protocol noise (Vercel Live etc.)
+      }
     });
 
     iframe.addEventListener('load', () => log('iframe loaded', 'info'));
     iframe.addEventListener('error', (e) => log(`iframe error: ${e.message || 'unknown'}`, 'err'));
 
-    log('host ready. Open DevTools (F12) for full console output.', 'info');
+    // Initial load
+    iframe.src = srcInput.value;
+    log('host ready. protocol=tig-short-editor v1.2', 'info');
   </script>
 </body>
 </html>
