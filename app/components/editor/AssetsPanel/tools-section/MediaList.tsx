@@ -47,10 +47,40 @@ export default function MediaList() {
     }, [filesID]);
 
     const onDeleteMedia = async (id: string) => {
+        const initialUsage = mediaFiles.filter(f => f.fileId === id);
+
+        if (initialUsage.length > 0) {
+            const itemLabel = initialUsage.length > 1 ? "items" : "item";
+            const confirmed = window.confirm(
+                `This media is used in the timeline (${initialUsage.length} ${itemLabel}). ` +
+                `Deleting it will also remove the timeline references. Continue?`
+            );
+            if (!confirmed) return;
+        }
+
+        // Re-evaluate after confirm() in case state changed during the prompt.
+        const toRevoke = mediaFiles.filter(f => f.fileId === id);
         const onUpdateMedia = mediaFiles.filter(f => f.fileId !== id);
+
+        // Update Redux first so subscribers (Remotion Player, composition) stop reading the src.
         dispatch(setMediaFiles(onUpdateMedia));
         dispatch(setFilesID(filesID?.filter(f => f !== id) || []));
-        await deleteFile(id);
+
+        try {
+            await deleteFile(id);
+        } catch (error) {
+            console.error("Failed to delete file from IndexedDB:", error);
+            toast.error("Failed to delete media");
+            return;
+        }
+
+        toRevoke.forEach(media => {
+            if (media.src) {
+                URL.revokeObjectURL(media.src);
+            }
+        });
+
+        toast.success("Media deleted");
     };
 
     return (
