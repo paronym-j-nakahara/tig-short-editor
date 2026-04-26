@@ -90,6 +90,9 @@ const projectStateSlice = createSlice({
         setFilesID: (state, action: PayloadAction<string[]>) => {
             state.filesID = action.payload;
         },
+        appendFilesID: (state, action: PayloadAction<string[]>) => {
+            state.filesID = [...(state.filesID || []), ...action.payload];
+        },
         setExportSettings: (state, action: PayloadAction<ExportConfig>) => {
             state.exportSettings = action.payload;
         },
@@ -128,6 +131,7 @@ export const {
     setProjectName,
     setIsPlaying,
     setFilesID,
+    appendFilesID,
     setExportSettings,
     setResolution,
     setQuality,
