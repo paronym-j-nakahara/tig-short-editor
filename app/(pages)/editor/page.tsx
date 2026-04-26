@@ -6,6 +6,10 @@ import { createBlankProject } from "../../store/projectFactory";
 import { addProject, setCurrentProject, updateProject } from "../../store/slices/projectsSlice";
 import { rehydrate, setMediaFiles } from '../../store/slices/projectSlice';
 import { setActiveSection } from "../../store/slices/projectSlice";
+import { useEmbedMode } from "@/app/lib/useEmbedMode";
+import { usePostMessageBridge } from "@/app/lib/postMessage/usePostMessageBridge";
+import { sendToParent } from "@/app/lib/postMessage/bridge";
+import { EDITOR_VERSION, PROTOCOL_VERSION } from "@/app/lib/postMessage/types";
 import AddText from '../../components/editor/AssetsPanel/tools-section/AddText';
 import AddMedia from '../../components/editor/AssetsPanel/AddButtons/UploadMedia';
 import MediaList from '../../components/editor/AssetsPanel/tools-section/MediaList';
@@ -31,8 +35,44 @@ function EditorInner() {
     const { currentProjectId } = useAppSelector((state) => state.projects);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const embedMode = useEmbedMode();
+    const [bridgeReady, setBridgeReady] = useState(false);
 
     const { activeSection, activeElement } = projectState;
+
+    usePostMessageBridge(embedMode, {
+        onInit: (payload, _msg, senders) => {
+            // Phase 1-3 で assets を S3 から fetch して Redux に展開する。
+            // 現状はエンベロープ疎通確認のため initAck を返すのみ。
+            if (process.env.NODE_ENV !== "production") {
+                console.log("[postMessage] init received", payload);
+            }
+            senders.sendInitAck({ sessionId: payload.sessionId, ok: true });
+        },
+        onClose: (payload) => {
+            // CMS から強制クローズ要求。embed mode では CMS が iframe を削除するので
+            // 内部状態のクリーンアップのみ行う想定（Phase 1 後半で配線）。
+            if (process.env.NODE_ENV !== "production") {
+                console.log("[postMessage] close received", payload);
+            }
+        },
+        onCancelExport: (payload) => {
+            // Phase 1-4 で FFmpeg レンダリングのキャンセル処理に配線。
+            if (process.env.NODE_ENV !== "production") {
+                console.log("[postMessage] cancelExport received", payload);
+            }
+        },
+    });
+
+    useEffect(() => {
+        if (!embedMode || bridgeReady) return;
+        sendToParent("ready", {
+            editorVersion: EDITOR_VERSION,
+            minSupportedVersion: PROTOCOL_VERSION,
+            recommendedVersion: PROTOCOL_VERSION,
+        });
+        setBridgeReady(true);
+    }, [embedMode, bridgeReady]);
 
     useEffect(() => {
         const loadProject = async () => {
