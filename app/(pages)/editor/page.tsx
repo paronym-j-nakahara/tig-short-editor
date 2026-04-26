@@ -6,6 +6,7 @@ import { createBlankProject } from "../../store/projectFactory";
 import { addProject, setCurrentProject, updateProject } from "../../store/slices/projectsSlice";
 import { appendFilesID, rehydrate, setMediaFiles } from '../../store/slices/projectSlice';
 import { setActiveSection } from "../../store/slices/projectSlice";
+import { clearEmbedSession, setEmbedSession } from "../../store/slices/embedSlice";
 import { useEmbedMode } from "@/app/lib/useEmbedMode";
 import { usePostMessageBridge } from "@/app/lib/postMessage/usePostMessageBridge";
 import { sendToParent } from "@/app/lib/postMessage/bridge";
@@ -51,6 +52,12 @@ function EditorInner() {
             // TODO(Phase 1 後半): onClose / closeRequest 時に embed mode で取り込んだ
             //   IndexedDB の fileId と blob を deleteFile() で削除すること（残骸防止）
             try {
+                // embed session を Redux に保存（FfmpegRender が upload PUT URL を参照する）
+                dispatch(setEmbedSession({
+                    sessionId: payload.sessionId,
+                    upload: payload.upload,
+                }));
+
                 const incomingAssets = payload.assets ?? [];
                 const { loaded, failed } = await loadAssetsFromUrls(incomingAssets);
                 if (loaded.length > 0) {
@@ -72,12 +79,12 @@ function EditorInner() {
             }
         },
         onClose: (payload) => {
-            // CMS から強制クローズ要求。embed mode では CMS が iframe を削除するので
-            // 内部状態のクリーンアップのみ行う想定（Phase 1 後半で配線）。
+            // CMS から強制クローズ要求。embed session をクリアして CMS が iframe を削除する想定。
             // TODO(Phase 1 後半): embed mode で取り込んだ IndexedDB の blob を削除する
             if (process.env.NODE_ENV !== "production") {
                 console.log("[postMessage] close received", payload);
             }
+            dispatch(clearEmbedSession());
         },
         onCancelExport: (payload) => {
             // Phase 1-4 で FFmpeg レンダリングのキャンセル処理に配線。

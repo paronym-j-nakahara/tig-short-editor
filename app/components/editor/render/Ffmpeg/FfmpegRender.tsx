@@ -8,6 +8,10 @@ import { extractConfigs } from "@/app/utils/extractConfigs";
 import { mimeToExt } from "@/app/types";
 import { toast } from "react-hot-toast";
 import FfmpegProgressBar from "./ProgressBar";
+import { useEmbedMode } from "@/app/lib/useEmbedMode";
+import { sendToParent } from "@/app/lib/postMessage/bridge";
+import { uploadBlobToSignedUrl } from "@/app/lib/postMessage/uploadToS3";
+import { generateThumbnailFromVideo } from "@/app/lib/postMessage/generateThumbnail";
 
 interface FileUploaderProps {
     loadFunction: () => Promise<void>;
@@ -17,12 +21,16 @@ interface FileUploaderProps {
 }
 export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMessages }: FileUploaderProps) {
     const { mediaFiles, projectName, exportSettings, duration, textElements } = useAppSelector(state => state.projectState);
+    const embedSession = useAppSelector(state => state.embed);
+    const embedMode = useEmbedMode();
     const totalDuration = duration;
     const videoRef = useRef<HTMLVideoElement>(null);
     const [loaded, setLoaded] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isRendering, setIsRendering] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "completed" | "failed">("idle");
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     useEffect(() => {
         if (loaded && videoRef.current && previewUrl) {
@@ -220,16 +228,137 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
             return outputUrl;
         };
 
+        // embed mode 起動時に exportStart を CMS に通知
+        if (embedMode && embedSession.sessionId) {
+            sendToParent("exportStart", { sessionId: embedSession.sessionId });
+        }
+
         // Run the function and handle the result/error
         try {
             const outputUrl = await renderFunction();
             setPreviewUrl(outputUrl);
             setLoaded(true);
+
+            const willUpload =
+                embedMode && !!embedSession.sessionId && !!embedSession.upload;
+            // embed mode 時は uploading UI を先に表示してから isRendering を解除し、
+            // 「Save Video ボタンが一瞬出る」チラつきを避ける
+            if (willUpload) {
+                setUploadStatus("uploading");
+            }
             setIsRendering(false);
             toast.success('Video rendered successfully');
+
+            if (willUpload) {
+                await uploadRenderedToS3(outputUrl);
+            }
         } catch (err) {
             toast.error('Failed to render video');
             console.error("Failed to render video:", err);
+            if (embedMode && embedSession.sessionId) {
+                sendToParent("exportError", {
+                    sessionId: embedSession.sessionId,
+                    code: "RENDER_FAILED",
+                    message: err instanceof Error ? err.message : "render failed",
+                });
+            }
+        }
+    };
+
+    /**
+     * embed mode 専用: レンダリング後の output.mp4 とサムネ画像を S3 PUT し、
+     * 進捗 → 完了 → エラーを postMessage で CMS に通知する。
+     *
+     * - mp4 PUT は必須（失敗で exportError）
+     * - サムネ PUT は best effort（失敗は警告のみで exportComplete を送る）
+     * - exportProgress は 1% 単位で throttle
+     */
+    const lastSentProgressRef = useRef(0);
+    const uploadRenderedToS3 = async (outputUrl: string) => {
+        if (!embedSession.sessionId || !embedSession.upload) return;
+        const { sessionId } = embedSession;
+        const { putUrl, contentType, s3Key, thumbnailPutUrl, thumbnailS3Key, thumbnailContentType } = embedSession.upload;
+
+        setUploadStatus("uploading");
+        setUploadProgress(0);
+        lastSentProgressRef.current = 0;
+
+        try {
+            // mp4 Blob 取得
+            const videoRes = await fetch(outputUrl);
+            const videoBlob = await videoRes.blob();
+
+            // サムネ生成（webp 第一選択、Safari 等で webp 非対応なら jpeg にフォールバック）
+            let thumbnail: Awaited<ReturnType<typeof generateThumbnailFromVideo>> | null = null;
+            try {
+                thumbnail = await generateThumbnailFromVideo(videoBlob);
+            } catch (e) {
+                console.warn("[postMessage] thumbnail generation failed (best effort)", e);
+            }
+
+            // mp4 + (任意) サムネ を並列 PUT。サムネ失敗は警告扱い。
+            const [videoSettled, thumbSettled] = await Promise.allSettled([
+                uploadBlobToSignedUrl({
+                    putUrl,
+                    contentType,
+                    s3Key,
+                    blob: videoBlob,
+                    onProgress: (p) => {
+                        setUploadProgress(p);
+                        // 1% 以上の変化のみ postMessage 送信して throttle
+                        if (p - lastSentProgressRef.current >= 0.01 || p === 1) {
+                            lastSentProgressRef.current = p;
+                            sendToParent("exportProgress", {
+                                sessionId,
+                                progress: p,
+                                phase: "uploading",
+                            });
+                        }
+                    },
+                }),
+                thumbnail
+                    ? uploadBlobToSignedUrl({
+                        putUrl: thumbnailPutUrl,
+                        contentType: thumbnail.mimeType === thumbnailContentType ? thumbnailContentType : thumbnail.mimeType,
+                        s3Key: thumbnailS3Key,
+                        blob: thumbnail.blob,
+                    })
+                    : Promise.reject(new Error("THUMBNAIL_SKIPPED")),
+            ]);
+
+            // mp4 PUT が失敗したら全体失敗
+            if (videoSettled.status === "rejected") {
+                throw videoSettled.reason instanceof Error
+                    ? videoSettled.reason
+                    : new Error("UPLOAD_FAILED");
+            }
+            if (thumbSettled.status === "rejected") {
+                console.warn("[postMessage] thumbnail upload failed (best effort)", thumbSettled.reason);
+            }
+
+            sendToParent("exportComplete", {
+                sessionId,
+                s3Key: videoSettled.value.s3Key,
+                thumbnailS3Key,
+                fileName: `${projectName}.mp4`,
+                fileSize: videoSettled.value.fileSize,
+                duration: totalDuration,
+                width: thumbnail?.width ?? 0,
+                height: thumbnail?.height ?? 0,
+                mimeType: contentType,
+            });
+            setUploadStatus("completed");
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "upload failed";
+            const code = message.startsWith("HTTP_403")
+                ? "UPLOAD_URL_EXPIRED"
+                : "UPLOAD_FAILED";
+            sendToParent("exportError", { sessionId, code, message });
+            setUploadStatus("failed");
+            toast.error(`Upload to CMS failed: ${message}`);
+        } finally {
+            // 自分が fetch でラップした blob URL は revoke。preview 表示用 outputUrl は
+            // 既存挙動に合わせて UI 側で保持するため、ここでは revoke しない。
         }
     };
 
@@ -286,31 +415,51 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                                 {previewUrl && (
                                     <video src={previewUrl} controls className="w-full mb-4" />
                                 )}
-                                <div className="flex justify-between">
-                                    <a
-                                        href={previewUrl || '#'}
-                                        download={`${projectName}.mp4`}
-                                        className={`inline-flex items-center p-3 bg-white hover:bg-[#ccc] rounded-lg text-gray-900 font-bold transition-all transform `}
-                                    >
-                                        <Image
-                                            alt='Download'
-                                            className="Black"
-                                            height={18}
-                                            src={'https://www.svgrepo.com/show/501347/save.svg'}
-                                            width={18}
-                                        />
-                                        <span className="ml-2">Save Video</span>
-                                    </a>
-                                    <a
-                                        href="https://github.com/sponsors/mohyware"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={`inline-flex items-center p-3 bg-pink-600 hover:bg-pink-500 rounded-lg text-gray-900 font-bold transition-all transform`}
-                                    >
-                                        <Heart size={20} className="mr-2" />
-                                        Sponsor on Github
-                                    </a>
-                                </div>
+                                {embedMode ? (
+                                    <div className="text-sm">
+                                        {uploadStatus === "uploading" && (
+                                            <p className="text-gray-200">
+                                                Uploading to CMS… {Math.round(uploadProgress * 100)}%
+                                            </p>
+                                        )}
+                                        {uploadStatus === "completed" && (
+                                            <p className="text-green-400">
+                                                Upload complete. The CMS will close this window.
+                                            </p>
+                                        )}
+                                        {uploadStatus === "failed" && (
+                                            <p className="text-red-400">
+                                                Upload failed. Please retry from the CMS side.
+                                            </p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex justify-between">
+                                        <a
+                                            href={previewUrl || '#'}
+                                            download={`${projectName}.mp4`}
+                                            className={`inline-flex items-center p-3 bg-white hover:bg-[#ccc] rounded-lg text-gray-900 font-bold transition-all transform `}
+                                        >
+                                            <Image
+                                                alt='Download'
+                                                className="Black"
+                                                height={18}
+                                                src={'https://www.svgrepo.com/show/501347/save.svg'}
+                                                width={18}
+                                            />
+                                            <span className="ml-2">Save Video</span>
+                                        </a>
+                                        <a
+                                            href="https://github.com/sponsors/mohyware"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={`inline-flex items-center p-3 bg-pink-600 hover:bg-pink-500 rounded-lg text-gray-900 font-bold transition-all transform`}
+                                        >
+                                            <Heart size={20} className="mr-2" />
+                                            Sponsor on Github
+                                        </a>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
