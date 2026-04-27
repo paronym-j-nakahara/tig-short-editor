@@ -9,6 +9,10 @@
     "build:stg": "NEXT_PUBLIC_ALLOWED_CMS_ORIGINS=https://cms.stg.tigmedia.jp next build",
     "build:demo": "NEXT_PUBLIC_ALLOWED_CMS_ORIGINS=https://cms.demo.tigmedia.jp next build",
     "build:prod": "NEXT_PUBLIC_ALLOWED_CMS_ORIGINS=https://cms.tigmedia.jp next build",
+    "deploy:dev": "npm run build:dev && firebase deploy --only hosting -P dev",
+    "deploy:stg": "npm run build:stg && firebase deploy --only hosting -P stg",
+    "deploy:demo": "npm run build:demo && firebase deploy --only hosting -P demo",
+    "deploy:prod": "npm run build:prod && firebase deploy --only hosting -P prod",
     "start": "next start",
     "lint": "next lint"
   },
