@@ -11,14 +11,58 @@ ClipJS (fork: `tig-short-editor`) — a browser-based online video editor. No ba
 ```bash
 npm install            # Install dependencies
 npm run dev            # Dev server (http://localhost:3000)
-npm run build          # Next.js production build
+npm run build          # Next.js production build (no env injection)
 npm start              # Run built output
 npm run lint           # next lint (eslint-config-next)
+
+# Environment-specific builds (inject NEXT_PUBLIC_ALLOWED_CMS_ORIGINS)
+npm run build:dev      # dev: cms.dev.tigmedia.jp
+npm run build:stg      # stg: cms.stg.tigmedia.jp
+npm run build:demo     # demo: cms.demo.tigmedia.jp
+npm run build:prod     # prod: cms.tigmedia.jp
+
+# Firebase Hosting deploy (build + deploy)
+npm run deploy:dev     # → tig-short-editor-dev.web.app
+npm run deploy:stg     # → tig-short-editor-stg.web.app
+npm run deploy:demo    # → tig-short-editor-demo.web.app
+npm run deploy:prod    # → tig-short-editor.web.app
 
 # Docker (self-hosted)
 docker build -t clipjs .
 docker run -p 3000:3000 clipjs
 ```
+
+## Firebase Hosting
+
+各環境を **独立した Firebase プロジェクト** で管理。`.firebaserc` の alias で切り替え。
+
+| Alias | Firebase Project | Plan | URL |
+|---|---|---|---|
+| `dev` | `tig-short-editor-dev` | Spark (free) | tig-short-editor-dev.web.app |
+| `stg` | `tig-short-editor-stg` | Spark (free) | tig-short-editor-stg.web.app |
+| `demo` | `tig-short-editor-demo` | Spark (free) | tig-short-editor-demo.web.app |
+| `prod` | `tig-short-editor` | Spark (free) ※将来 Blaze | tig-short-editor.web.app |
+
+### Initial setup (one-time)
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase use dev   # (or stg/demo/prod, defined in .firebaserc)
+```
+
+### Deploy
+
+```bash
+npm run deploy:dev    # most common
+firebase hosting:channel:deploy preview-feature-x -P dev   # preview channel
+```
+
+### Spark plan limits & monitoring
+
+Spark プランは **月 10 GB データ転送** が上限。社外向け prod は超過リスクがあるため、運用後は Firebase Console > Hosting > 使用量タブを **週次で確認** する。
+
+超過時は対象プロジェクトの Hosting が一時停止（503）→ 翌月リセットを待つか、Blaze にアップグレード。Spark → Blaze 切り替えは Firebase Console から GCP Billing Account を紐付けるだけで、リポジトリ側の変更は不要。
 
 There is no test suite — `package.json` defines no test script and the repo has no tests.
 

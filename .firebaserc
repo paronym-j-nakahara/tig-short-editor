@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "default": "tig-short-editor-dev",
+    "dev": "tig-short-editor-dev",
+    "stg": "tig-short-editor-stg",
+    "demo": "tig-short-editor-demo",
+    "prod": "tig-short-editor"
+  }
+}
