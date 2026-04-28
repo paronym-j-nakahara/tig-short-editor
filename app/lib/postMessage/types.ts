@@ -1,14 +1,16 @@
 /**
- * Short Editor postMessage プロトコル v1.2 型定義
+ * Short Editor postMessage プロトコル v1.3 型定義
  *
  * 仕様: docs/plan/TIG_PF-10627_short_editor/postmessage_protocol.md
  *
  * すべてのメッセージは ShortEditorMessage<T> エンベロープに包まれる。
  * `protocol` と `version` が一致しないものは silently drop。
+ *
+ * v1.3: edit モードでコンテンツタイトル双方向同期を追加 (init.contentsTitle, exportComplete.title)
  */
 
 export const PROTOCOL = "tig-short-editor" as const;
-export const PROTOCOL_VERSION = "1.2" as const;
+export const PROTOCOL_VERSION = "1.3" as const;
 
 /**
  * Editor アプリのバージョン。`ready` payload の editorVersion 等に使う。
