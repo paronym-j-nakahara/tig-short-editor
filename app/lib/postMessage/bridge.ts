@@ -50,15 +50,40 @@ export function getAllowedCmsOrigins(): string[] {
 }
 
 /**
+ * iframe を埋め込んだ親ページの origin を `document.referrer` から推定する。
+ * クロスオリジン iframe では `window.parent.location.origin` が読めないため referrer を使う。
+ * referrer header が空 / 異常な場合は null を返す。
+ */
+export function getReferrerOrigin(): string | null {
+    if (typeof document === "undefined" || !document.referrer) {
+        return null;
+    }
+    try {
+        return new URL(document.referrer).origin;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * 送信先 targetOrigin を解決する。優先順位:
  * 1. `init` 等で記録した parent origin（許可リスト内のもの）
- * 2. allowlist の先頭（dev フォールバック / Phase 1-6 までの暫定）
+ * 2. `document.referrer` から推定した parent origin（許可リスト内のもの）
+ * 3. allowlist の先頭（最終フォールバック）
+ *
+ * 2 を入れることで、allowlist に複数 origin を並べた構成（例: 本番 dev と個人 dev）でも
+ * 順番に依存せず実親 origin に postMessage できる。
+ *
  * いずれも null の場合は呼び出し元で send を諦める。
  */
 export function resolveTargetOrigin(): string | null {
     const allowed = getAllowedCmsOrigins();
     if (knownParentOrigin && allowed.includes(knownParentOrigin)) {
         return knownParentOrigin;
+    }
+    const referrer = getReferrerOrigin();
+    if (referrer && allowed.includes(referrer)) {
+        return referrer;
     }
     return allowed[0] ?? null;
 }
