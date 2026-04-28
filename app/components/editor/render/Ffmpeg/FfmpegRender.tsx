@@ -60,6 +60,8 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
         const renderFunction = async () => {
             const params = extractConfigs(exportSettings);
 
+            // catch で参照するため try の外で宣言
+            let ffmpegArgs: string[] = [];
             try {
                 const filters = [];
                 const overlays = [];
@@ -196,7 +198,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
 
                 // Final filter_complex
                 const complexFilter = filters.join('; ');
-                const ffmpegArgs = [
+                ffmpegArgs = [
                     ...inputs,
                     '-filter_complex', complexFilter,
                     '-map', '[outv]',
