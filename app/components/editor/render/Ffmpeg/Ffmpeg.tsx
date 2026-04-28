@@ -19,8 +19,6 @@ export default function Ffmpeg() {
 
         ffmpeg.on("log", ({ message }) => {
             setLogMessages(message);
-            // FFmpeg の stderr は exec が成功扱いでも内部エラーを含む可能性があるため Console にも出す（デバッグ用）
-            console.log("[FFmpeg]", message);
         });
 
         await ffmpeg.load({
