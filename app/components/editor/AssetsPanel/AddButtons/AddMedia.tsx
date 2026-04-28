@@ -3,7 +3,7 @@
 import { getFile, useAppDispatch, useAppSelector } from "../../../../store";
 import { setMediaFiles } from "../../../../store/slices/projectSlice";
 import { storeFile } from "../../../../store";
-import { categorizeFile } from "../../../../utils/utils";
+import { categorizeFile, probeVideoHasAudio } from "../../../../utils/utils";
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
@@ -18,10 +18,28 @@ export default function AddMedia({ fileId }: { fileId: string }) {
         const mediaId = crypto.randomUUID();
 
         if (fileId) {
-            const relevantClips = mediaFiles.filter(clip => clip.type === categorizeFile(file.type));
+            const mediaType = categorizeFile(file.type);
+            const relevantClips = mediaFiles.filter(clip => clip.type === mediaType);
             const lastEnd = relevantClips.length > 0
                 ? Math.max(...relevantClips.map(f => f.positionEnd))
                 : 0;
+
+            // Probe audio track for video media so we can correctly build the
+            // FFmpeg filter_complex on export. Audio files always have audio,
+            // images never do.
+            let hasAudio: boolean | undefined;
+            if (mediaType === 'video') {
+                try {
+                    hasAudio = await probeVideoHasAudio(file);
+                } catch (err) {
+                    console.warn('Failed to probe audio track, assuming present:', err);
+                    hasAudio = true;
+                }
+            } else if (mediaType === 'audio') {
+                hasAudio = true;
+            } else {
+                hasAudio = false;
+            }
 
             updatedMedia.push({
                 id: mediaId,
@@ -42,8 +60,9 @@ export default function AddMedia({ fileId }: { fileId: string }) {
                 crop: { x: 0, y: 0, width: 1920, height: 1080 },
                 playbackSpeed: 1,
                 volume: 100,
-                type: categorizeFile(file.type),
+                type: mediaType,
                 zIndex: 0,
+                hasAudio,
             });
         }
         dispatch(setMediaFiles(updatedMedia));
