@@ -13,6 +13,44 @@ export const formatTime = (seconds: number) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+// Probe video/image natural dimensions. Returns null on failure or after 5s timeout.
+// 元動画/画像のアスペクト比を MediaFile.width/height に反映するための probe ヘルパー。
+export const probeMediaDimensions = (
+    file: File,
+    kind: "video" | "image"
+): Promise<{ width: number; height: number } | null> => {
+    return new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        let done = false;
+        const finish = (val: { width: number; height: number } | null) => {
+            if (done) return;
+            done = true;
+            URL.revokeObjectURL(url);
+            resolve(val);
+        };
+        if (kind === "image") {
+            const img = new Image();
+            img.onload = () => finish({ width: img.naturalWidth, height: img.naturalHeight });
+            img.onerror = () => finish(null);
+            img.src = url;
+        } else {
+            const video = document.createElement("video");
+            video.preload = "metadata";
+            video.muted = true;
+            video.onloadedmetadata = () => {
+                finish({ width: video.videoWidth, height: video.videoHeight });
+                video.remove();
+            };
+            video.onerror = () => {
+                finish(null);
+                video.remove();
+            };
+            video.src = url;
+        }
+        setTimeout(() => finish(null), 5000);
+    });
+};
+
 // Probe video/audio duration via HTMLMediaElement metadata. Returns 0 on failure.
 export const probeMediaDuration = (file: File, kind: "video" | "audio"): Promise<number> => {
     return new Promise((resolve) => {
