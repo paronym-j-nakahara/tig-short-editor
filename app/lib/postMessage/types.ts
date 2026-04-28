@@ -89,6 +89,11 @@ export interface InitPayload {
     mode: "new" | "edit";
     sessionId: string;
     contentId?: number;
+    /**
+     * CMS から受け取るコンテンツタイトル（edit モード時に既存タイトルを引き継ぐ）。
+     * 受信時は Redux の projectName にセットされ、IndexedDB に永続化される。
+     */
+    contentsTitle?: string;
     assets: AssetInput[];
     upload: UploadConfig;
     subtitles?: SubtitleInput[];
@@ -149,6 +154,11 @@ export interface ExportCompletePayload {
     width: number;
     height: number;
     mimeType: string;
+    /**
+     * Editor 上で編集された最終タイトル。CMS で contents.title として保存される想定。
+     * `init.contentsTitle` で受け取った値、もしくはユーザーが Editor 上で編集した値。
+     */
+    title?: string;
     textElements?: SubtitleInput[];
 }
 

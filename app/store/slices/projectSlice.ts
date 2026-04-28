@@ -14,7 +14,7 @@ export const initialState: ProjectState = {
     isMuted: false,
     duration: 0,
     zoomLevel: 1,
-    timelineZoom: 100,
+    timelineZoom: 30,
     enableMarkerTracking: true,
     activeSection: 'media',
     activeElement: null,

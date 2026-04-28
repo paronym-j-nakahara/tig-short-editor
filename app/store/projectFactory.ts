@@ -21,7 +21,7 @@ export const createBlankProject = (
         activeElementIndex: 0,
         filesID: [],
         zoomLevel: 1,
-        timelineZoom: 100,
+        timelineZoom: 30,
         enableMarkerTracking: true,
         resolution: { width: 1920, height: 1080 },
         fps: 30,

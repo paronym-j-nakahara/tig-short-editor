@@ -1,10 +1,10 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { getFile, storeProject, useAppDispatch, useAppSelector } from "../../store";
 import { getProject } from "../../store";
 import { createBlankProject } from "../../store/projectFactory";
 import { addProject, setCurrentProject, updateProject } from "../../store/slices/projectsSlice";
-import { appendFilesID, rehydrate, setMediaFiles } from '../../store/slices/projectSlice';
+import { appendFilesID, rehydrate, setMediaFiles, setProjectName } from '../../store/slices/projectSlice';
 import { setActiveSection } from "../../store/slices/projectSlice";
 import { clearEmbedSession, setEmbedSession } from "../../store/slices/embedSlice";
 import { useEmbedMode } from "@/app/lib/useEmbedMode";
@@ -39,6 +39,11 @@ function EditorInner() {
     const [error, setError] = useState<string | null>(null);
     const embedMode = useEmbedMode();
     const [bridgeReady, setBridgeReady] = useState(false);
+    /**
+     * `init.contentsTitle` を受信したタイミングと rehydrate 完了タイミングは前後しうるため、
+     * 受信値を ref に保持し rehydrate 後にも反映する（CMS から来た title を優先）。
+     */
+    const pendingContentsTitleRef = useRef<string | null>(null);
 
     const { activeSection, activeElement } = projectState;
 
@@ -57,6 +62,13 @@ function EditorInner() {
                     sessionId: payload.sessionId,
                     upload: payload.upload,
                 }));
+
+                // CMS から受け取ったタイトルを Redux に反映。rehydrate との競合に備えて
+                // ref にも保存し、rehydrate 完了後に再反映する（下の useEffect 参照）。
+                if (typeof payload.contentsTitle === "string" && payload.contentsTitle.length > 0) {
+                    pendingContentsTitleRef.current = payload.contentsTitle;
+                    dispatch(setProjectName(payload.contentsTitle));
+                }
 
                 const incomingAssets = payload.assets ?? [];
                 const { loaded, failed } = await loadAssetsFromUrls(incomingAssets);
@@ -144,6 +156,12 @@ function EditorInner() {
                             return { ...media, src: URL.createObjectURL(file) };
                         })
                     )));
+
+                    // rehydrate で IndexedDB の旧 projectName が反映されてしまうため、
+                    // CMS から init.contentsTitle で受け取った値があれば再度上書きする。
+                    if (pendingContentsTitleRef.current) {
+                        dispatch(setProjectName(pendingContentsTitleRef.current));
+                    }
                 }
             }
         };
