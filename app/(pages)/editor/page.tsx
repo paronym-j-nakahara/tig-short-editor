@@ -28,6 +28,7 @@ import { MediaFile } from "@/app/types";
 import ExportList from "../../components/editor/AssetsPanel/tools-section/ExportList";
 import Image from "next/image";
 import ProjectName from "../../components/editor/player/ProjectName";
+import { categorizeFile, probeMediaDuration, probeVideoHasAudio } from "@/app/utils/utils";
 
 function EditorInner() {
     const searchParams = useSearchParams();
@@ -51,6 +52,11 @@ function EditorInner() {
      * 確実に反映できる（state 更新 → useEffect 発火）。
      */
     const [pendingAssetFileIds, setPendingAssetFileIds] = useState<string[]>([]);
+    /**
+     * edit モードで CMS から受け取った既存動画を初期状態でタイムラインに add するための MediaFile。
+     * rehydrate との競合を避けるため state ベースで保持し、rehydrate 完了後にマージ反映する。
+     */
+    const [pendingAssetMediaFiles, setPendingAssetMediaFiles] = useState<MediaFile[]>([]);
 
     const { activeSection, activeElement } = projectState;
 
@@ -84,6 +90,54 @@ function EditorInner() {
                     dispatch(appendFilesID(fileIds));
                     // state 更新で下の useEffect が発火し、rehydrate との競合があっても再復元される
                     setPendingAssetFileIds((prev) => [...prev, ...fileIds]);
+
+                    // edit モードのみ: コンテンツ動画を初期状態でタイムラインに add する
+                    if (payload.mode === "edit") {
+                        const builtMediaFiles: MediaFile[] = [];
+                        const lastEnd: Record<string, number> = { video: 0, audio: 0, image: 0 };
+                        for (const { fileId } of loaded) {
+                            const file = await getFile(fileId);
+                            if (!file) continue;
+                            const mediaType = categorizeFile(file.type);
+                            if (mediaType === "unknown") continue;
+                            const duration = mediaType === "image"
+                                ? 30
+                                : (await probeMediaDuration(file, mediaType)) || 30;
+                            const hasAudio = mediaType === "video"
+                                ? await probeVideoHasAudio(file).catch(() => true)
+                                : mediaType === "audio";
+                            const positionStart = lastEnd[mediaType] ?? 0;
+                            const positionEnd = positionStart + duration;
+                            builtMediaFiles.push({
+                                id: crypto.randomUUID(),
+                                fileName: file.name,
+                                fileId,
+                                startTime: 0,
+                                endTime: duration,
+                                src: URL.createObjectURL(file),
+                                positionStart,
+                                positionEnd,
+                                includeInMerge: true,
+                                x: 0,
+                                y: 0,
+                                width: 1920,
+                                height: 1080,
+                                rotation: 0,
+                                opacity: 100,
+                                crop: { x: 0, y: 0, width: 1920, height: 1080 },
+                                playbackSpeed: 1,
+                                volume: 100,
+                                type: mediaType,
+                                zIndex: 0,
+                                hasAudio,
+                            });
+                            lastEnd[mediaType] = positionEnd;
+                        }
+                        if (builtMediaFiles.length > 0) {
+                            console.log("[postMessage] adding edit-mode mediaFiles", builtMediaFiles.length);
+                            setPendingAssetMediaFiles((prev) => [...prev, ...builtMediaFiles]);
+                        }
+                    }
                 }
                 senders.sendInitAck({
                     sessionId: payload.sessionId,
@@ -185,6 +239,16 @@ function EditorInner() {
         if (pendingAssetFileIds.length === 0) return;
         dispatch(appendFilesID(pendingAssetFileIds));
     }, [dispatch, pendingAssetFileIds, currentProjectId]);
+
+    // edit モードで受け取った既存動画を初期状態でタイムラインに add する。
+    // rehydrate が走った後にも欠けていれば追加する（重複 fileId は除外、無限ループ防止）。
+    useEffect(() => {
+        if (pendingAssetMediaFiles.length === 0) return;
+        const existingFileIds = new Set(projectState.mediaFiles.map((m) => m.fileId));
+        const toAdd = pendingAssetMediaFiles.filter((m) => !existingFileIds.has(m.fileId));
+        if (toAdd.length === 0) return;
+        dispatch(setMediaFiles([...projectState.mediaFiles, ...toAdd]));
+    }, [dispatch, pendingAssetMediaFiles, projectState.mediaFiles, currentProjectId]);
 
     useEffect(() => {
         const saveProject = async () => {

@@ -13,6 +13,37 @@ export const formatTime = (seconds: number) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+// Probe video/audio duration via HTMLMediaElement metadata. Returns 0 on failure.
+export const probeMediaDuration = (file: File, kind: "video" | "audio"): Promise<number> => {
+    return new Promise((resolve) => {
+        const el = document.createElement(kind);
+        const url = URL.createObjectURL(file);
+        let done = false;
+        const cleanup = () => {
+            if (done) return;
+            done = true;
+            URL.revokeObjectURL(url);
+            el.remove();
+        };
+        el.preload = "metadata";
+        el.muted = true;
+        el.onloadedmetadata = () => {
+            const d = isFinite(el.duration) ? el.duration : 0;
+            cleanup();
+            resolve(d);
+        };
+        el.onerror = () => {
+            cleanup();
+            resolve(0);
+        };
+        setTimeout(() => {
+            cleanup();
+            resolve(0);
+        }, 5000);
+        el.src = url;
+    });
+};
+
 // Probe whether a video file has an audio track using HTMLVideoElement.
 // Browsers expose non-standard properties (mozHasAudio, webkitAudioDecodedByteCount,
 // audioTracks) that we can use to detect this. We resolve to true if any signal
