@@ -44,6 +44,11 @@ function EditorInner() {
      * 受信値を ref に保持し rehydrate 後にも反映する（CMS から来た title を優先）。
      */
     const pendingContentsTitleRef = useRef<string | null>(null);
+    /**
+     * `init.assets` でロードした fileId を保持。rehydrate が IndexedDB の旧 filesID で
+     * 上書きしてしまうため、rehydrate 完了後に再度 appendFilesID して Library に復元する。
+     */
+    const pendingAssetFileIdsRef = useRef<string[]>([]);
 
     const { activeSection, activeElement } = projectState;
 
@@ -73,7 +78,9 @@ function EditorInner() {
                 const incomingAssets = payload.assets ?? [];
                 const { loaded, failed } = await loadAssetsFromUrls(incomingAssets);
                 if (loaded.length > 0) {
-                    dispatch(appendFilesID(loaded.map((l) => l.fileId)));
+                    const fileIds = loaded.map((l) => l.fileId);
+                    pendingAssetFileIdsRef.current = fileIds;
+                    dispatch(appendFilesID(fileIds));
                 }
                 senders.sendInitAck({
                     sessionId: payload.sessionId,
@@ -161,6 +168,11 @@ function EditorInner() {
                     // CMS から init.contentsTitle で受け取った値があれば再度上書きする。
                     if (pendingContentsTitleRef.current) {
                         dispatch(setProjectName(pendingContentsTitleRef.current));
+                    }
+                    // 同様に rehydrate で旧 filesID に上書きされてしまうため、init.assets で
+                    // 取り込んだ fileId を Library に再復元する。
+                    if (pendingAssetFileIdsRef.current.length > 0) {
+                        dispatch(appendFilesID(pendingAssetFileIdsRef.current));
                     }
                 }
             }
