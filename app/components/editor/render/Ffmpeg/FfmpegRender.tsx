@@ -381,6 +381,9 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 width: thumbnail?.width ?? 0,
                 height: thumbnail?.height ?? 0,
                 mimeType: contentType,
+                // CMS で contents.title として保存される。空タイトルは Render ボタンで
+                // 既に弾いているが、防衛的に trim した値を送る。
+                title: projectName.trim(),
             });
             setUploadStatus("completed");
         } catch (err) {
@@ -397,13 +400,18 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
         }
     };
 
+    // embed mode では title が CMS に送信されるため、空 / 空白のみのタイトルでは
+    // Render を許可しない（CMS 側で contents.title としてバリデーションが走る前提）。
+    const isTitleEmpty = embedMode && projectName.trim().length === 0;
+
     return (
         <>
             {/* Render Button */}
             <button
                 onClick={() => render()}
                 className={`inline-flex items-center p-3 bg-white hover:bg-[#ccc] rounded-lg disabled:opacity-50 text-gray-900 font-bold transition-all transform`}
-                disabled={(!loadFfmpeg || isRendering || (mediaFiles.length === 0 && textElements.length === 0))}
+                disabled={(!loadFfmpeg || isRendering || isTitleEmpty || (mediaFiles.length === 0 && textElements.length === 0))}
+                title={isTitleEmpty ? "タイトルを入力してください" : undefined}
             >
                 {(!loadFfmpeg || isRendering) && <span className="animate-spin mr-2">
                     <svg
