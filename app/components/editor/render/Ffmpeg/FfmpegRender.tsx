@@ -132,8 +132,17 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                         });
                     }
 
-                    // Audio: trim, then delay (in ms)
-                    if (sortedMediaFiles[i].type === 'audio' || sortedMediaFiles[i].type === 'video') {
+                    // Audio: trim, then delay (in ms).
+                    // Skip media that has no audio track (e.g. ReplayKit screen
+                    // recordings on iPhone). Including ':a' for an audio-less
+                    // input causes FFmpeg to fail with:
+                    //   "Stream specifier ':a' in filtergraph description ...
+                    //    matches no streams."
+                    const mediaType = sortedMediaFiles[i].type;
+                    const hasAudioTrack =
+                        mediaType === 'audio' ||
+                        (mediaType === 'video' && sortedMediaFiles[i].hasAudio !== false);
+                    if (hasAudioTrack) {
                         const delayMs = Math.round(positionStart * 1000);
                         const volume = sortedMediaFiles[i].volume !== undefined ? sortedMediaFiles[i].volume / 100 : 1;
                         filters.push(
@@ -196,16 +205,28 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
 
                 if (audioDelays.length > 0) {
                     ffmpegArgs.push('-map', '[outa]');
+                } else {
+                    // No audio sources at all (e.g. all inputs are silent
+                    // screen recordings or images). Tell FFmpeg explicitly
+                    // not to expect any audio output.
+                    ffmpegArgs.push('-an');
                 }
 
                 ffmpegArgs.push(
                     '-c:v', 'libx264',
-                    '-c:a', 'aac',
                     '-preset', params.preset,
                     '-crf', params.crf.toString(),
                     '-t', totalDuration.toFixed(3),
-                    'output.mp4'
                 );
+
+                // Only specify the audio codec when we actually have an
+                // audio output, otherwise FFmpeg ignores it but it makes the
+                // intent clearer.
+                if (audioDelays.length > 0) {
+                    ffmpegArgs.push('-c:a', 'aac');
+                }
+
+                ffmpegArgs.push('output.mp4');
 
                 await ffmpeg.exec(ffmpegArgs);
 
