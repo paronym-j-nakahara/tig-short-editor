@@ -99,10 +99,31 @@ function EditorInner() {
                     if (payload.mode === "edit") {
                         const builtMediaFiles: MediaFile[] = [];
                         const lastEnd: Record<string, number> = { video: 0, audio: 0, image: 0 };
-                        // Player キャンバスサイズ (CMS から ui.resolution が来ていればそれを、無ければ既定 1920x1080)。
-                        // audio は描画されないので便宜上 0/0。
-                        const canvasW = payload.ui?.resolution?.width ?? 1920;
-                        const canvasH = payload.ui?.resolution?.height ?? 1080;
+                        // Player キャンバスサイズの決定:
+                        // CMS の ui.resolution は配信側のターゲット解像度（Short は 9:16 固定）だが、
+                        // edit 対象が横動画なら Player キャンバスも横にしたほうが UX が自然。
+                        // → 最初の video/image asset を probe してアスペクト比を Player に反映する。
+                        let canvasW = payload.ui?.resolution?.width ?? 1920;
+                        let canvasH = payload.ui?.resolution?.height ?? 1080;
+                        for (const { fileId } of loaded) {
+                            const file = await getFile(fileId);
+                            if (!file) continue;
+                            const mediaType = categorizeFile(file.type);
+                            if (mediaType !== "video" && mediaType !== "image") continue;
+                            const dims = await probeMediaDimensions(file, mediaType);
+                            if (dims && dims.width > 0 && dims.height > 0) {
+                                // 元動画の解像度をそのまま Player キャンバスとして採用
+                                canvasW = dims.width;
+                                canvasH = dims.height;
+                                console.log("[postMessage] override player canvas from asset dims", { canvasW, canvasH });
+                                dispatch(setEmbedSession({
+                                    sessionId: payload.sessionId,
+                                    upload: payload.upload,
+                                    playerResolution: { width: canvasW, height: canvasH },
+                                }));
+                                break;
+                            }
+                        }
                         for (const { fileId } of loaded) {
                             const file = await getFile(fileId);
                             if (!file) continue;
