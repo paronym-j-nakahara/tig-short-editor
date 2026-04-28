@@ -28,7 +28,7 @@ import { MediaFile } from "@/app/types";
 import ExportList from "../../components/editor/AssetsPanel/tools-section/ExportList";
 import Image from "next/image";
 import ProjectName from "../../components/editor/player/ProjectName";
-import { categorizeFile, probeMediaDuration, probeVideoHasAudio } from "@/app/utils/utils";
+import { categorizeFile, probeMediaDimensions, probeMediaDuration, probeVideoHasAudio } from "@/app/utils/utils";
 
 function EditorInner() {
     const searchParams = useSearchParams();
@@ -71,9 +71,11 @@ function EditorInner() {
             //   IndexedDB の fileId と blob を deleteFile() で削除すること（残骸防止）
             try {
                 // embed session を Redux に保存（FfmpegRender が upload PUT URL を参照する）
+                // ui.resolution があれば Player のキャンバスサイズも反映する（縦動画 9:16 など）
                 dispatch(setEmbedSession({
                     sessionId: payload.sessionId,
                     upload: payload.upload,
+                    playerResolution: payload.ui?.resolution ?? null,
                 }));
 
                 // CMS から受け取ったタイトルを Redux に反映。rehydrate との競合に備えて
@@ -97,6 +99,10 @@ function EditorInner() {
                     if (payload.mode === "edit") {
                         const builtMediaFiles: MediaFile[] = [];
                         const lastEnd: Record<string, number> = { video: 0, audio: 0, image: 0 };
+                        // Player キャンバスサイズ (CMS から ui.resolution が来ていればそれを、無ければ既定 1920x1080)。
+                        // audio は描画されないので便宜上 0/0。
+                        const canvasW = payload.ui?.resolution?.width ?? 1920;
+                        const canvasH = payload.ui?.resolution?.height ?? 1080;
                         for (const { fileId } of loaded) {
                             const file = await getFile(fileId);
                             if (!file) continue;
@@ -108,6 +114,29 @@ function EditorInner() {
                             const hasAudio = mediaType === "video"
                                 ? await probeVideoHasAudio(file).catch(() => true)
                                 : mediaType === "audio";
+                            // C: 元動画/画像のアスペクト比を probe して、Player キャンバスに inscribe する。
+                            // letterbox を避けるため、キャンバスと同じアスペクトなら fit。
+                            // 違う場合はキャンバスの中央に最大インスクライブで配置 (黒帯は出るが歪まない)。
+                            let elementW = canvasW;
+                            let elementH = canvasH;
+                            let cropW = canvasW;
+                            let cropH = canvasH;
+                            let posX = 0;
+                            let posY = 0;
+                            if (mediaType === "video" || mediaType === "image") {
+                                const dims = await probeMediaDimensions(file, mediaType);
+                                if (dims && dims.width > 0 && dims.height > 0) {
+                                    cropW = dims.width;
+                                    cropH = dims.height;
+                                    const scaleW = canvasW / dims.width;
+                                    const scaleH = canvasH / dims.height;
+                                    const scale = Math.min(scaleW, scaleH);
+                                    elementW = Math.round(dims.width * scale);
+                                    elementH = Math.round(dims.height * scale);
+                                    posX = Math.round((canvasW - elementW) / 2);
+                                    posY = Math.round((canvasH - elementH) / 2);
+                                }
+                            }
                             const positionStart = lastEnd[mediaType] ?? 0;
                             const positionEnd = positionStart + duration;
                             builtMediaFiles.push({
@@ -120,13 +149,13 @@ function EditorInner() {
                                 positionStart,
                                 positionEnd,
                                 includeInMerge: true,
-                                x: 0,
-                                y: 0,
-                                width: 1920,
-                                height: 1080,
+                                x: posX,
+                                y: posY,
+                                width: elementW,
+                                height: elementH,
                                 rotation: 0,
                                 opacity: 100,
-                                crop: { x: 0, y: 0, width: 1920, height: 1080 },
+                                crop: { x: 0, y: 0, width: cropW, height: cropH },
                                 playbackSpeed: 1,
                                 volume: 100,
                                 type: mediaType,

@@ -9,9 +9,13 @@ const fps = 30;
 
 export const PreviewPlayer = () => {
     const projectState = useAppSelector((state) => state.projectState);
+    const playerResolution = useAppSelector((state) => state.embed.playerResolution);
     const { duration, currentTime, isPlaying, isMuted } = projectState;
     const playerRef = useRef<PlayerRef>(null);
     const dispatch = useDispatch();
+    // CMS から init.ui.resolution で受け取った値があればそれを使い、無ければ既存デフォルト 1920x1080。
+    const compositionWidth = playerResolution?.width ?? 1920;
+    const compositionHeight = playerResolution?.height ?? 1080;
 
     // update frame when current time with marker
     useEffect(() => {
@@ -64,8 +68,8 @@ export const PreviewPlayer = () => {
             component={Composition}
             inputProps={{}}
             durationInFrames={Math.floor(duration * fps) + 1}
-            compositionWidth={1920}
-            compositionHeight={1080}
+            compositionWidth={compositionWidth}
+            compositionHeight={compositionHeight}
             fps={fps}
             style={{ width: "100%", height: "100%" }}
             controls
