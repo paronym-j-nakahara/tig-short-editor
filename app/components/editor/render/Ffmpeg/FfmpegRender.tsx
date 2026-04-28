@@ -218,7 +218,19 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 await ffmpeg.exec(ffmpegArgs);
 
             } catch (err) {
+                // exec が失敗した場合は output.mp4 が存在しないので、続く readFile が FS error で
+                // 真の原因を覆い隠してしまう。詳細を出してから rethrow する。
                 console.error('FFmpeg processing error:', err);
+                console.error('FFmpeg args:', ffmpegArgs);
+                console.error('mediaFiles:', mediaFiles.map((m) => ({
+                    fileId: m.fileId,
+                    type: m.type,
+                    width: m.width,
+                    height: m.height,
+                    positionStart: m.positionStart,
+                    positionEnd: m.positionEnd,
+                })));
+                throw err;
             }
 
             // return the output url
