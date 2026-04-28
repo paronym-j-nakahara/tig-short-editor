@@ -22,6 +22,11 @@ export interface MediaFile {
     volume: number;
     zIndex: number;
 
+    // Whether this media has an audio track. For video media, undefined means
+    // unknown (treated as having audio for backward compatibility). For audio
+    // media this is always true; for image media it is irrelevant.
+    hasAudio?: boolean;
+
     // Optional visual settings
     x?: number;
     y?: number;
