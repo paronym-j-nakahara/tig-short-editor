@@ -46,9 +46,11 @@ function EditorInner() {
     const pendingContentsTitleRef = useRef<string | null>(null);
     /**
      * `init.assets` でロードした fileId を保持。rehydrate が IndexedDB の旧 filesID で
-     * 上書きしてしまうため、rehydrate 完了後に再度 appendFilesID して Library に復元する。
+     * 上書きしてしまうため、state にして useEffect で再 appendFilesID する。
+     * ref ではなく state にすることで、loadAssetsFromUrls の async 完了が rehydrate 後でも
+     * 確実に反映できる（state 更新 → useEffect 発火）。
      */
-    const pendingAssetFileIdsRef = useRef<string[]>([]);
+    const [pendingAssetFileIds, setPendingAssetFileIds] = useState<string[]>([]);
 
     const { activeSection, activeElement } = projectState;
 
@@ -79,8 +81,9 @@ function EditorInner() {
                 const { loaded, failed } = await loadAssetsFromUrls(incomingAssets);
                 if (loaded.length > 0) {
                     const fileIds = loaded.map((l) => l.fileId);
-                    pendingAssetFileIdsRef.current = fileIds;
                     dispatch(appendFilesID(fileIds));
+                    // state 更新で下の useEffect が発火し、rehydrate との競合があっても再復元される
+                    setPendingAssetFileIds((prev) => [...prev, ...fileIds]);
                 }
                 senders.sendInitAck({
                     sessionId: payload.sessionId,
@@ -169,16 +172,19 @@ function EditorInner() {
                     if (pendingContentsTitleRef.current) {
                         dispatch(setProjectName(pendingContentsTitleRef.current));
                     }
-                    // 同様に rehydrate で旧 filesID に上書きされてしまうため、init.assets で
-                    // 取り込んだ fileId を Library に再復元する。
-                    if (pendingAssetFileIdsRef.current.length > 0) {
-                        dispatch(appendFilesID(pendingAssetFileIdsRef.current));
-                    }
                 }
             }
         };
         loadProject();
     }, [dispatch, currentProjectId]);
+
+    // init.assets でロードした fileId を Library に反映する。
+    // rehydrate より onInit が後に走った場合に備え、currentProjectId 変化後にも再 dispatch する。
+    // appendFilesID reducer は重複 fileId を skip するので二重 dispatch しても安全。
+    useEffect(() => {
+        if (pendingAssetFileIds.length === 0) return;
+        dispatch(appendFilesID(pendingAssetFileIds));
+    }, [dispatch, pendingAssetFileIds, currentProjectId]);
 
     useEffect(() => {
         const saveProject = async () => {
