@@ -62,9 +62,9 @@ function EditorInner() {
 
     usePostMessageBridge(embedMode, {
         onInit: async (payload, _msg, senders) => {
-            // TIG_PF-10669 一時デバッグ: dev で Library に動画が出ない問題の調査用に常時出力
-            console.log("[postMessage] init received", payload);
-            console.log("[postMessage] incomingAssets count", payload.assets?.length ?? 0);
+            if (process.env.NODE_ENV !== "production") {
+                console.log("[postMessage] init received", payload);
+            }
             // S3 GET URL から assets を fetch → IndexedDB に取り込み → filesID に追加。
             // 失敗した asset は failedAssets として initAck で CMS に返却する。
             // TODO(Phase 1 後半): onClose / closeRequest 時に embed mode で取り込んだ
@@ -87,10 +87,8 @@ function EditorInner() {
 
                 const incomingAssets = payload.assets ?? [];
                 const { loaded, failed } = await loadAssetsFromUrls(incomingAssets);
-                console.log("[postMessage] loadAssetsFromUrls result", { loadedCount: loaded.length, failedCount: failed.length, failed });
                 if (loaded.length > 0) {
                     const fileIds = loaded.map((l) => l.fileId);
-                    console.log("[postMessage] dispatching appendFilesID", fileIds);
                     dispatch(appendFilesID(fileIds));
                     // state 更新で下の useEffect が発火し、rehydrate との競合があっても再復元される
                     setPendingAssetFileIds((prev) => [...prev, ...fileIds]);
@@ -115,7 +113,6 @@ function EditorInner() {
                                 // 元動画の解像度をそのまま Player キャンバスとして採用
                                 canvasW = dims.width;
                                 canvasH = dims.height;
-                                console.log("[postMessage] override player canvas from asset dims", { canvasW, canvasH });
                                 dispatch(setEmbedSession({
                                     sessionId: payload.sessionId,
                                     upload: payload.upload,
@@ -186,7 +183,6 @@ function EditorInner() {
                             lastEnd[mediaType] = positionEnd;
                         }
                         if (builtMediaFiles.length > 0) {
-                            console.log("[postMessage] adding edit-mode mediaFiles", builtMediaFiles.length);
                             setPendingAssetMediaFiles((prev) => [...prev, ...builtMediaFiles]);
                         }
                     }
