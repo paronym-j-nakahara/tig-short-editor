@@ -91,7 +91,12 @@ const projectStateSlice = createSlice({
             state.filesID = action.payload;
         },
         appendFilesID: (state, action: PayloadAction<string[]>) => {
-            state.filesID = [...(state.filesID || []), ...action.payload];
+            // 重複 fileId は skip（embed mode の init.assets 受信時に rehydrate との競合で
+            // 二重 dispatch されることがあるため、安全に冪等にする）
+            const existing = new Set(state.filesID || []);
+            const additions = action.payload.filter((id) => !existing.has(id));
+            if (additions.length === 0) return;
+            state.filesID = [...(state.filesID || []), ...additions];
         },
         setExportSettings: (state, action: PayloadAction<ExportConfig>) => {
             state.exportSettings = action.payload;
