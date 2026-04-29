@@ -30,7 +30,7 @@ export const createBlankProject = (
         future: [],
         exportSettings: {
             resolution: "1080p",
-            quality: "high",
+            quality: "ultra",
             speed: "fastest",
             fps: 30,
             format: "mp4",
