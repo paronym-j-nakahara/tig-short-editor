@@ -121,6 +121,7 @@ export default function TextProperties() {
                                 <option value="Arial">Arial</option>
                                 <option value="Inter">Inter</option>
                                 <option value="Lato">Lato</option>
+                                <option value="NotoSansJP">Noto Sans JP (日本語)</option>
                             </select>
                         </div>
                     </div>
