@@ -68,8 +68,14 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 const inputs = [];
                 const audioDelays = [];
 
-                // Create base black background
-                filters.push(`color=c=black:size=1920x1080:d=${totalDuration.toFixed(3)}[base]`);
+                // Create base black background.
+                // Player canvas (embed.playerResolution) と一致させないと、
+                // MediaFile.x/y/width/height が Player 基準で計算されているため
+                // Export 出力で座標がズレて動画が canvas 外にはみ出す。
+                // standalone (非 embed) のときは null なので 1920x1080 にフォールバック。
+                const baseW = embedSession.playerResolution?.width ?? 1920;
+                const baseH = embedSession.playerResolution?.height ?? 1080;
+                filters.push(`color=c=black:size=${baseW}x${baseH}:d=${totalDuration.toFixed(3)}[base]`);
                 // Sort videos by zIndex ascending (lowest drawn first)
                 const sortedMediaFiles = [...mediaFiles].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
