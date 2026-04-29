@@ -379,6 +379,14 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 console.warn("[postMessage] thumbnail upload failed (best effort)", thumbSettled.reason);
             }
 
+            // 動画自体のサイズは Player canvas (= Export base canvas) と一致する。
+            // thumbnail.width/height は webp 縮小後で動画サイズと違うこと、
+            // また thumbnail 生成失敗時に 0 になり movies テーブルに 0 が入って
+            // tig-creator-player で `--video-aspect-ratio: NaN` になる事故が起きる。
+            // Player canvas を真として送信する (フォールバック: thumbnail → 1080x1920)。
+            const videoW = embedSession.playerResolution?.width ?? thumbnail?.width ?? 1080;
+            const videoH = embedSession.playerResolution?.height ?? thumbnail?.height ?? 1920;
+
             sendToParent("exportComplete", {
                 sessionId,
                 s3Key: videoSettled.value.s3Key,
@@ -386,8 +394,8 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 fileName: `${projectName}.mp4`,
                 fileSize: videoSettled.value.fileSize,
                 duration: totalDuration,
-                width: thumbnail?.width ?? 0,
-                height: thumbnail?.height ?? 0,
+                width: videoW,
+                height: videoH,
                 mimeType: contentType,
                 // CMS で contents.title として保存される。空タイトルは Render ボタンで
                 // 既に弾いているが、防衛的に trim した値を送る。
