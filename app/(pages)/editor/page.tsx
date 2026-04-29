@@ -97,30 +97,13 @@ function EditorInner() {
                     if (payload.mode === "edit") {
                         const builtMediaFiles: MediaFile[] = [];
                         const lastEnd: Record<string, number> = { video: 0, audio: 0, image: 0 };
-                        // Player キャンバスサイズの決定:
-                        // CMS の ui.resolution は配信側のターゲット解像度（Short は 9:16 固定）だが、
-                        // edit 対象が横動画なら Player キャンバスも横にしたほうが UX が自然。
-                        // → 最初の video/image asset を probe してアスペクト比を Player に反映する。
-                        let canvasW = payload.ui?.resolution?.width ?? 1920;
-                        let canvasH = payload.ui?.resolution?.height ?? 1080;
-                        for (const { fileId } of loaded) {
-                            const file = await getFile(fileId);
-                            if (!file) continue;
-                            const mediaType = categorizeFile(file.type);
-                            if (mediaType !== "video" && mediaType !== "image") continue;
-                            const dims = await probeMediaDimensions(file, mediaType);
-                            if (dims && dims.width > 0 && dims.height > 0) {
-                                // 元動画の解像度をそのまま Player キャンバスとして採用
-                                canvasW = dims.width;
-                                canvasH = dims.height;
-                                dispatch(setEmbedSession({
-                                    sessionId: payload.sessionId,
-                                    upload: payload.upload,
-                                    playerResolution: { width: canvasW, height: canvasH },
-                                }));
-                                break;
-                            }
-                        }
+                        // Player キャンバスサイズは CMS の ui.resolution（Short=9:16 のターゲット解像度）を採用する。
+                        // 元動画が 16:9 letterbox 済みでも Editor 側で勝手に上書きせず、
+                        // クリエイターが意図したアスペクト比 (TigShort の納品フォーマット) を保つ。
+                        // 各 MediaFile は元動画の natural dimensions を probe して canvas に inscribe する
+                        // ため、横動画を 9:16 キャンバスに置けば上下黒帯（letterbox）になる。
+                        const canvasW = payload.ui?.resolution?.width ?? 1080;
+                        const canvasH = payload.ui?.resolution?.height ?? 1920;
                         for (const { fileId } of loaded) {
                             const file = await getFile(fileId);
                             if (!file) continue;
