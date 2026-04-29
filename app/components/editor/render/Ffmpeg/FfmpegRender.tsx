@@ -178,7 +178,9 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 // Apply text 
                 if (textElements.length > 0) {
                     // load fonts
-                    let fonts = ['Arial', 'Inter', 'Lato'];
+                    // 識別子はスペースなし英数のみで揃える (drawtext fontfile で空白がエスケープ問題を起こすため)。
+                    // NotoSansJP は Variable TTF (JP subset, ~9.6MB) で日本語グリフを提供する。
+                    let fonts = ['Arial', 'Inter', 'Lato', 'NotoSansJP'];
                     for (let i = 0; i < fonts.length; i++) {
                         const font = fonts[i];
                         const res = await fetch(`/fonts/${font}.ttf`);
