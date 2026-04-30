@@ -40,6 +40,12 @@ function EditorInner() {
     const embedMode = useEmbedMode();
     const [bridgeReady, setBridgeReady] = useState(false);
     /**
+     * `init.assets` を S3 GET URL から fetch している間 true。
+     * edit モードで CMS から既存コンテンツを読み込む間ユーザーへフィードバックする
+     * （TIG_PF-10627 / 動画編集起動時のローディング）。
+     */
+    const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+    /**
      * `init.contentsTitle` を受信したタイミングと rehydrate 完了タイミングは前後しうるため、
      * 受信値を ref に保持し rehydrate 後にも反映する（CMS から来た title を優先）。
      */
@@ -63,7 +69,13 @@ function EditorInner() {
             // 失敗した asset は failedAssets として initAck で CMS に返却する。
             // TODO(Phase 1 後半): onClose / closeRequest 時に embed mode で取り込んだ
             //   IndexedDB の fileId と blob を deleteFile() で削除すること（残骸防止）
+            const incomingAssets = payload.assets ?? [];
             try {
+                // assets を fetch し始める前にローディングを立てる。setIsLoadingAssets(false)
+                // は finally 側で常に呼ぶ（冪等）。複数回 init が来ても確実にリセットされる。
+                if (incomingAssets.length > 0) {
+                    setIsLoadingAssets(true);
+                }
                 // embed session を Redux に保存（FfmpegRender が upload PUT URL を参照する）
                 // ui.resolution があれば Player のキャンバスサイズも反映する（縦動画 9:16 など）
                 dispatch(setEmbedSession({
@@ -79,7 +91,6 @@ function EditorInner() {
                     dispatch(setProjectName(payload.contentsTitle));
                 }
 
-                const incomingAssets = payload.assets ?? [];
                 const { loaded, failed } = await loadAssetsFromUrls(incomingAssets);
                 if (loaded.length > 0) {
                     const fileIds = loaded.map((l) => l.fileId);
@@ -101,6 +112,8 @@ function EditorInner() {
                     code: "INVALID_PAYLOAD",
                     message,
                 });
+            } finally {
+                setIsLoadingAssets(false);
             }
         },
         onClose: (payload) => {
@@ -216,11 +229,13 @@ function EditorInner() {
     return (
         <div className="flex flex-col h-screen select-none">
             {
-                isLoading ? (
+                (isLoading || isLoadingAssets) ? (
                     <div className="fixed inset-0 flex items-center bg-black bg-opacity-50 justify-center z-50">
                         <div className="bg-black bg-opacity-70 p-6 rounded-lg flex flex-col items-center">
                             <div className="w-16 h-16 border-4 border-t-white border-r-white border-opacity-30 border-t-opacity-100 rounded-full animate-spin"></div>
-                            <p className="mt-4 text-white text-lg">Loading project...</p>
+                            <p className="mt-4 text-white text-lg">
+                                {isLoadingAssets ? "Loading content..." : "Loading project..."}
+                            </p>
                         </div>
                     </div>
                 ) : null
