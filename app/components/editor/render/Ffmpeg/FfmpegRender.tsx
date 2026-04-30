@@ -12,6 +12,7 @@ import { useEmbedMode } from "@/app/lib/useEmbedMode";
 import { sendToParent } from "@/app/lib/postMessage/bridge";
 import { uploadBlobToSignedUrl } from "@/app/lib/postMessage/uploadToS3";
 import { generateThumbnailFromVideo } from "@/app/lib/postMessage/generateThumbnail";
+import { MAX_PROJECT_DURATION, MIN_PROJECT_DURATION } from "@/app/lib/limits";
 
 interface FileUploaderProps {
     loadFunction: () => Promise<void>;
@@ -420,14 +421,24 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
     // Render を許可しない（CMS 側で contents.title としてバリデーションが走る前提）。
     const isTitleEmpty = embedMode && projectName.trim().length === 0;
 
+    // 動画長バリデーション（TIG_PF-10675）。CMS 側 creator.min/max_video_duration と整合。
+    const hasContent = mediaFiles.length > 0 || textElements.length > 0;
+    const isOverDuration = hasContent && totalDuration > MAX_PROJECT_DURATION;
+    const isUnderDuration = hasContent && totalDuration < MIN_PROJECT_DURATION;
+    const durationErrorMsg = isOverDuration
+        ? `動画長が ${MAX_PROJECT_DURATION} 秒を超えています（現在 ${totalDuration.toFixed(1)} 秒）`
+        : isUnderDuration
+            ? `動画長は ${MIN_PROJECT_DURATION} 秒以上にしてください（現在 ${totalDuration.toFixed(1)} 秒）`
+            : null;
+
     return (
         <>
             {/* Render Button */}
             <button
                 onClick={() => render()}
                 className={`inline-flex items-center p-3 bg-white hover:bg-[#ccc] rounded-lg disabled:opacity-50 text-gray-900 font-bold transition-all transform`}
-                disabled={(!loadFfmpeg || isRendering || isTitleEmpty || (mediaFiles.length === 0 && textElements.length === 0))}
-                title={isTitleEmpty ? "タイトルを入力してください" : undefined}
+                disabled={(!loadFfmpeg || isRendering || isTitleEmpty || isOverDuration || isUnderDuration || !hasContent)}
+                title={isTitleEmpty ? "タイトルを入力してください" : (durationErrorMsg ?? undefined)}
             >
                 {(!loadFfmpeg || isRendering) && <span className="animate-spin mr-2">
                     <svg
