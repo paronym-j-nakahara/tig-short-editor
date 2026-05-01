@@ -4,7 +4,11 @@ import { listFiles, useAppDispatch, useAppSelector } from "../../../../store";
 import { setMediaFiles, setFilesID } from "../../../../store/slices/projectSlice";
 import { storeFile } from "../../../../store";
 import { categorizeFile } from "../../../../utils/utils";
+import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
 import Image from 'next/image';
+
+const ACCEPT_BASE = "video/*,audio/*";
+const ACCEPT_WITH_IMAGE = `${ACCEPT_BASE},image/*`;
 
 export default function AddMedia() {
     const { mediaFiles, filesID } = useAppSelector((state) => state.projectState);
@@ -40,7 +44,7 @@ export default function AddMedia() {
             </label>
             <input
                 type="file"
-                accept="video/*,audio/*,image/*"
+                accept={FEATURE_FLAGS.enableImageUpload ? ACCEPT_WITH_IMAGE : ACCEPT_BASE}
                 multiple
                 onChange={handleFileChange}
                 className="hidden"

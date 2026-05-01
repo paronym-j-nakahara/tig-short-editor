@@ -8,6 +8,7 @@ import { appendFilesID, rehydrate, setMediaFiles, setProjectName } from '../../s
 import { setActiveSection } from "../../store/slices/projectSlice";
 import { clearEmbedSession, setEmbedSession } from "../../store/slices/embedSlice";
 import { useEmbedMode } from "@/app/lib/useEmbedMode";
+import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
 import { usePostMessageBridge } from "@/app/lib/postMessage/usePostMessageBridge";
 import { sendToParent } from "@/app/lib/postMessage/bridge";
 import { loadAssetsFromUrls } from "@/app/lib/postMessage/loadAssets";
@@ -202,6 +203,15 @@ function EditorInner() {
         dispatch(appendFilesID(pendingAssetFileIds));
     }, [dispatch, pendingAssetFileIds, currentProjectId]);
 
+    // FEATURE_FLAGS.enableText が false のとき、IndexedDB に保存された
+    // activeSection === "text" が rehydrate されてしまうと中央パネルが空欄になり
+    // ユーザーが抜け出せないので、media に補正する。
+    useEffect(() => {
+        if (!FEATURE_FLAGS.enableText && projectState.activeSection === "text") {
+            dispatch(setActiveSection("media"));
+        }
+    }, [dispatch, projectState.activeSection]);
+
     useEffect(() => {
         const saveProject = async () => {
             if (!projectState || projectState.id !== currentProjectId) return;
@@ -244,7 +254,7 @@ function EditorInner() {
                 <div className="flex-[0.1] min-w-[60px] max-w-[100px] border-r border-gray-700 overflow-y-auto p-4">
                     <div className="flex flex-col space-y-2">
                         <HomeButton />
-                        <TextButton onClick={() => handleFocus("text")} />
+                        {FEATURE_FLAGS.enableText && <TextButton onClick={() => handleFocus("text")} />}
                         <LibraryButton onClick={() => handleFocus("media")} />
                         <ExportButton onClick={() => handleFocus("export")} />
                     </div>
@@ -259,7 +269,7 @@ function EditorInner() {
                             <MediaList />
                         </div>
                     )}
-                    {activeSection === "text" && (
+                    {FEATURE_FLAGS.enableText && activeSection === "text" && (
                         <div>
                             <AddText />
                         </div>
@@ -277,20 +287,22 @@ function EditorInner() {
                     <PreviewPlayer />
                 </div>
 
-                <div className="flex-[0.4] min-w-[200px] border-l border-gray-800 overflow-y-auto p-4">
-                    {activeElement === "media" && (
-                        <div>
-                            <h2 className="text-lg font-semibold mb-4">Media Properties</h2>
-                            <MediaProperties />
-                        </div>
-                    )}
-                    {activeElement === "text" && (
-                        <div>
-                            <h2 className="text-lg font-semibold mb-4">Text Properties</h2>
-                            <TextProperties />
-                        </div>
-                    )}
-                </div>
+                {FEATURE_FLAGS.enablePropertiesPanel && (
+                    <div className="flex-[0.4] min-w-[200px] border-l border-gray-800 overflow-y-auto p-4">
+                        {activeElement === "media" && (
+                            <div>
+                                <h2 className="text-lg font-semibold mb-4">Media Properties</h2>
+                                <MediaProperties />
+                            </div>
+                        )}
+                        {FEATURE_FLAGS.enableText && activeElement === "text" && (
+                            <div>
+                                <h2 className="text-lg font-semibold mb-4">Text Properties</h2>
+                                <TextProperties />
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
             <div className="flex flex-row border-t border-gray-500">
                 <div className=" bg-darkSurfacePrimary flex flex-col items-center justify-center mt-20">
@@ -316,28 +328,32 @@ function EditorInner() {
                             />
                         </div>
                     </div>
-                    <div className="relative h-16">
-                        <div className="flex items-center gap-2 p-4">
-                            <Image
-                                alt="Video"
-                                className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
-                                height={30}
-                                width={30}
-                                src="https://www.svgrepo.com/show/535454/image.svg"
-                            />
+                    {FEATURE_FLAGS.enableImageUpload && (
+                        <div className="relative h-16">
+                            <div className="flex items-center gap-2 p-4">
+                                <Image
+                                    alt="Video"
+                                    className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
+                                    height={30}
+                                    width={30}
+                                    src="https://www.svgrepo.com/show/535454/image.svg"
+                                />
+                            </div>
                         </div>
-                    </div>
-                    <div className="relative h-16">
-                        <div className="flex items-center gap-2 p-4">
-                            <Image
-                                alt="Video"
-                                className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
-                                height={30}
-                                width={30}
-                                src="https://www.svgrepo.com/show/535686/text.svg"
-                            />
+                    )}
+                    {FEATURE_FLAGS.enableText && (
+                        <div className="relative h-16">
+                            <div className="flex items-center gap-2 p-4">
+                                <Image
+                                    alt="Video"
+                                    className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
+                                    height={30}
+                                    width={30}
+                                    src="https://www.svgrepo.com/show/535686/text.svg"
+                                />
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
                 <Timeline />
             </div>

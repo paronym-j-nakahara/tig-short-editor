@@ -13,6 +13,7 @@ import { sendToParent } from "@/app/lib/postMessage/bridge";
 import { uploadBlobToSignedUrl } from "@/app/lib/postMessage/uploadToS3";
 import { generateThumbnailFromVideo } from "@/app/lib/postMessage/generateThumbnail";
 import { MAX_PROJECT_DURATION, MIN_PROJECT_DURATION } from "@/app/lib/limits";
+import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
 
 interface FileUploaderProps {
     loadFunction: () => Promise<void>;
@@ -474,9 +475,12 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
 
                         {isRendering ? (
                             <div>
-                                <div className="bg-black p-2 h-40 text-sm font-mono rounded">
+                                {/* <div className="bg-black p-2 h-40 text-sm font-mono rounded"> */}
+                                <div className="bg-black p-2 text-sm font-mono rounded">
                                     <div>{logMessages}</div>
-                                    <p className="text-xs text-gray-400 italic">The progress bar is experimental in FFmpeg WASM, so it might appear slow or unresponsive even though the actual processing is not.</p>
+                                    {FEATURE_FLAGS.enableRenderTips && (
+                                        <p className="text-xs text-gray-400 italic">The progress bar is experimental in FFmpeg WASM, so it might appear slow or unresponsive even though the actual processing is not.</p>
+                                    )}
                                     <FfmpegProgressBar ffmpeg={ffmpeg} />
                                 </div>
                             </div>
