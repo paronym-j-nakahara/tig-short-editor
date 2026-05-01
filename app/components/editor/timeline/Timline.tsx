@@ -11,6 +11,7 @@ import TextTimeline from "./elements-timeline/TextTimeline";
 import { throttle } from 'lodash';
 import GlobalKeyHandlerProps from "../../../components/editor/keys/GlobalKeyHandlerProps";
 import toast from "react-hot-toast";
+import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
 export const Timeline = () => {
     const { currentTime, timelineZoom, enableMarkerTracking, activeElement, activeElementIndex, mediaFiles, textElements, duration, isPlaying } = useAppSelector((state) => state.projectState);
     const dispatch = useDispatch();
@@ -208,25 +209,27 @@ export const Timeline = () => {
             <div className="flex flex-row items-center justify-between gap-12 w-full">
                 <div className="flex flex-row items-center gap-2">
                     {/* Track Marker */}
-                    <button
-                        onClick={() => dispatch(setMarkerTrack(!enableMarkerTracking))}
-                        className="bg-white border rounded-md border-transparent transition-colors flex flex-row items-center justify-center text-gray-800 hover:bg-[#ccc] dark:hover:bg-[#ccc] mt-2 font-medium text-sm sm:text-base h-auto px-2 py-1 sm:w-auto"
-                    >
-                        {enableMarkerTracking ? <Image
-                            alt="cut"
-                            className="h-auto w-auto max-w-[20px] max-h-[20px]"
-                            height={30}
-                            width={30}
-                            src="https://www.svgrepo.com/show/447546/yes-alt.svg"
-                        /> : <Image
-                            alt="cut"
-                            className="h-auto w-auto max-w-[20px] max-h-[20px]"
-                            height={30}
-                            width={30}
-                            src="https://www.svgrepo.com/show/447315/dismiss.svg"
-                        />}
-                        <span className="ml-2">Track Marker <span className="text-xs">(T)</span></span>
-                    </button>
+                    {FEATURE_FLAGS.enableTrackMarkerToggle && (
+                        <button
+                            onClick={() => dispatch(setMarkerTrack(!enableMarkerTracking))}
+                            className="bg-white border rounded-md border-transparent transition-colors flex flex-row items-center justify-center text-gray-800 hover:bg-[#ccc] dark:hover:bg-[#ccc] mt-2 font-medium text-sm sm:text-base h-auto px-2 py-1 sm:w-auto"
+                        >
+                            {enableMarkerTracking ? <Image
+                                alt="cut"
+                                className="h-auto w-auto max-w-[20px] max-h-[20px]"
+                                height={30}
+                                width={30}
+                                src="https://www.svgrepo.com/show/447546/yes-alt.svg"
+                            /> : <Image
+                                alt="cut"
+                                className="h-auto w-auto max-w-[20px] max-h-[20px]"
+                                height={30}
+                                width={30}
+                                src="https://www.svgrepo.com/show/447315/dismiss.svg"
+                            />}
+                            <span className="ml-2">Track Marker <span className="text-xs">(T)</span></span>
+                        </button>
+                    )}
                     {/* Split */}
                     <button
                         onClick={handleSplit}
