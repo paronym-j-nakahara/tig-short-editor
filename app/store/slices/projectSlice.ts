@@ -5,6 +5,7 @@ import { ProjectState } from '../../types';
 export const initialState: ProjectState = {
     id: crypto.randomUUID(),
     projectName: '',
+    projectNameAutoSet: false,
     createdAt: new Date().toISOString(),
     lastModified: new Date().toISOString(),
     mediaFiles: [],
@@ -53,7 +54,18 @@ const projectStateSlice = createSlice({
             state.duration = calculateTotalDuration(state.mediaFiles, state.textElements);
         },
         setProjectName: (state, action: PayloadAction<string>) => {
+            // 手動編集 (ProjectName UI 経由) の入口。autoSet を必ず false に戻す。
             state.projectName = action.payload;
+            state.projectNameAutoSet = false;
+        },
+        /**
+         * AddMedia による自動タイトル設定専用 (TIG_PF-10686)。
+         * autoSet を true にしておくことで、A 削除 → B 追加 のフローで
+         * B のファイル名へ上書きできるようにする。
+         */
+        setProjectNameAuto: (state, action: PayloadAction<string>) => {
+            state.projectName = action.payload;
+            state.projectNameAutoSet = true;
         },
         setProjectId: (state, action: PayloadAction<string>) => {
             state.id = action.payload;
@@ -121,7 +133,14 @@ const projectStateSlice = createSlice({
         },
         // Special reducer for rehydrating state from IndexedDB
         rehydrate: (state, action: PayloadAction<ProjectState>) => {
-            return { ...state, ...action.payload };
+            // 古い IndexedDB データには projectNameAutoSet が無い可能性。undefined のままだと
+            // AddMedia の `titleNotManuallyEdited` 判定（!editName || autoSet）が
+            // false 扱いになり、初期挙動が壊れる。明示的に false でフォールバックする。
+            return {
+                ...state,
+                ...action.payload,
+                projectNameAutoSet: action.payload.projectNameAutoSet ?? false,
+            };
         },
         createNewProject: (state) => {
             return { ...initialState };
@@ -134,6 +153,7 @@ export const {
     setTextElements,
     setCurrentTime,
     setProjectName,
+    setProjectNameAuto,
     setIsPlaying,
     setFilesID,
     appendFilesID,
