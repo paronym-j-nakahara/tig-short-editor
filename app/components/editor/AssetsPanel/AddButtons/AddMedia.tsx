@@ -1,7 +1,7 @@
 "use client";
 
 import { getFile, useAppDispatch, useAppSelector } from "../../../../store";
-import { setMediaFiles, setProjectName } from "../../../../store/slices/projectSlice";
+import { setMediaFiles, setProjectNameAuto } from "../../../../store/slices/projectSlice";
 import { setPlayerResolution } from "../../../../store/slices/embedSlice";
 import { storeFile } from "../../../../store";
 import { categorizeFile, probeMediaDimensions, probeVideoHasAudio } from "../../../../utils/utils";
@@ -13,7 +13,7 @@ const DEFAULT_PROJECT_NAME = "Untitled Project";
 const NEW_CLIP_DURATION_SEC = 30;
 
 export default function AddMedia({ fileId }: { fileId: string }) {
-    const { mediaFiles, projectName } = useAppSelector((state) => state.projectState);
+    const { mediaFiles, projectName, projectNameAutoSet } = useAppSelector((state) => state.projectState);
     const playerResolution = useAppSelector((state) => state.embed.playerResolution);
     const dispatch = useAppDispatch();
     const embedMode = useEmbedMode();
@@ -123,15 +123,18 @@ export default function AddMedia({ fileId }: { fileId: string }) {
         });
         dispatch(setMediaFiles(updatedMedia));
 
-        // standalone モードかつデフォルトタイトルのままなら、最初に Add した動画の
-        // ファイル名（拡張子除く）を初期タイトルに設定する（TIG_PF-10686）。
-        // 手動編集後は projectName !== DEFAULT_PROJECT_NAME になるので上書きされない。
-        // embed mode は CMS から init.contentsTitle を受け取るので除外。
-        // 「最初に挙げた動画」要件のため、isFirstVideoClip かつ video のみで発動。
-        if (!embedMode && isFirstVideoClip && mediaType === 'video' && projectName === DEFAULT_PROJECT_NAME) {
+        // standalone モードで「初回動画 Add」かつタイトルが未編集相当なら、
+        // ファイル名（拡張子除く）を自動タイトルに設定する（TIG_PF-10686）。
+        // 未編集判定: 初期 "Untitled Project" のまま OR 直前まで自動設定
+        // (projectNameAutoSet=true) のとき。手動編集すると autoSet=false になり
+        // 上書きされなくなる。embed mode は CMS から init.contentsTitle を受信
+        // するため除外。
+        const titleNotManuallyEdited =
+            projectName === DEFAULT_PROJECT_NAME || projectNameAutoSet;
+        if (!embedMode && isFirstVideoClip && mediaType === 'video' && titleNotManuallyEdited) {
             const baseName = file.name.replace(/\.[^.]+$/, "");
             if (baseName.length > 0) {
-                dispatch(setProjectName(baseName));
+                dispatch(setProjectNameAuto(baseName));
             }
         }
 
