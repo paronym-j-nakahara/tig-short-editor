@@ -475,7 +475,8 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
 
                         {isRendering ? (
                             <div>
-                                <div className="bg-black p-2 h-40 text-sm font-mono rounded">
+                                {/* <div className="bg-black p-2 h-40 text-sm font-mono rounded"> */}
+                                <div className="bg-black p-2 text-sm font-mono rounded">
                                     <div>{logMessages}</div>
                                     {FEATURE_FLAGS.enableRenderTips && (
                                         <p className="text-xs text-gray-400 italic">The progress bar is experimental in FFmpeg WASM, so it might appear slow or unresponsive even though the actual processing is not.</p>
