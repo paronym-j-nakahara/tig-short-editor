@@ -280,7 +280,7 @@ export const Timeline = () => {
                     <span className="text-white text-lg">-</span>
                     <input
                         type="range"
-                        min={30}
+                        min={2}
                         max={120}
                         step="1"
                         value={timelineZoom}
