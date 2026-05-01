@@ -432,6 +432,14 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
             ? `動画長は ${MIN_PROJECT_DURATION} 秒以上にしてください（現在 ${totalDuration.toFixed(1)} 秒）`
             : null;
 
+    // ボタンが disabled になる理由をユーザーに常時提示するためのメッセージ。
+    // タイムライン側の 180s 上限ガードを撤廃した（TIG_PF-10686）ので、ここで
+    // 何が起きているかが分からないと「なぜ Render できないのか」がブラックボックス
+    // 化するため、ボタン直下に常時表示する。
+    const renderBlockedMsg = isTitleEmpty
+        ? "タイトルを入力してください"
+        : (!hasContent ? "素材を追加してください" : durationErrorMsg);
+
     return (
         <>
             {/* Render Button */}
@@ -439,7 +447,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 onClick={() => render()}
                 className={`inline-flex items-center p-3 bg-white hover:bg-[#ccc] rounded-lg disabled:opacity-50 text-gray-900 font-bold transition-all transform`}
                 disabled={(!loadFfmpeg || isRendering || isTitleEmpty || isOverDuration || isUnderDuration || !hasContent)}
-                title={isTitleEmpty ? "タイトルを入力してください" : (durationErrorMsg ?? undefined)}
+                title={renderBlockedMsg ?? undefined}
             >
                 {(!loadFfmpeg || isRendering) && <span className="animate-spin mr-2">
                     <svg
@@ -454,6 +462,13 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 </span>}
                 <p>{loadFfmpeg ? (isRendering ? 'Rendering...' : 'Render') : 'Loading FFmpeg...'}</p>
             </button>
+
+            {/* Render が disabled になっている理由を常時表示（TIG_PF-10686） */}
+            {renderBlockedMsg && (
+                <p className="mt-2 text-xs text-red-400 leading-snug">
+                    {renderBlockedMsg}
+                </p>
+            )}
 
             {/* Render Modal */}
             {showModal && (
