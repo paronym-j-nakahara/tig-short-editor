@@ -5,7 +5,6 @@ import { setMediaFiles, setProjectNameAuto } from "../../../../store/slices/proj
 import { setPlayerResolution } from "../../../../store/slices/embedSlice";
 import { storeFile } from "../../../../store";
 import { categorizeFile, probeMediaDimensions, probeVideoHasAudio } from "../../../../utils/utils";
-import { useEmbedMode } from "@/app/lib/useEmbedMode";
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
@@ -16,7 +15,6 @@ export default function AddMedia({ fileId }: { fileId: string }) {
     const { mediaFiles, projectName, projectNameAutoSet } = useAppSelector((state) => state.projectState);
     const playerResolution = useAppSelector((state) => state.embed.playerResolution);
     const dispatch = useAppDispatch();
-    const embedMode = useEmbedMode();
 
     const handleFileChange = async () => {
         if (!fileId) return;
@@ -61,12 +59,12 @@ export default function AddMedia({ fileId }: { fileId: string }) {
             }
         }
 
-        // standalone (non-embed) モードかつ「最初に Add される動画」のとき、
-        // Composition のキャンバス解像度を動画解像度に合わせる（TIG_PF-10686）。
-        // embed mode は CMS が ui.resolution で 1080x1920 を指定しているため触らない。
+        // 「最初に Add される動画」のとき、Composition のキャンバス解像度を動画解像度に
+        // 合わせる（TIG_PF-10686）。embed mode でも発火させる（CMS が ui.resolution で
+        // 1080x1920 を初期指定していても、ユーザーが実際に Add した動画の解像度に追従させる）。
         // 全トラック横断ではなく video トラックのみで判定（音声を先に Add しても動画自動調整は発火する）。
         const isFirstVideoClip = !mediaFiles.some(f => f.type === 'video');
-        const shouldAutoResize = !embedMode && isFirstVideoClip && mediaType === 'video' && dims;
+        const shouldAutoResize = isFirstVideoClip && mediaType === 'video' && dims;
         if (shouldAutoResize) {
             dispatch(setPlayerResolution({ width: dims!.width, height: dims!.height }));
         }
@@ -123,15 +121,18 @@ export default function AddMedia({ fileId }: { fileId: string }) {
         });
         dispatch(setMediaFiles(updatedMedia));
 
-        // standalone モードで「初回動画 Add」かつタイトルが未編集相当なら、
-        // ファイル名（拡張子除く）を自動タイトルに設定する（TIG_PF-10686）。
+        // 「初回動画 Add」かつタイトルが未編集相当なら、ファイル名（拡張子除く）を
+        // 自動タイトルに設定する（TIG_PF-10686）。
         // 未編集判定: 初期 "Untitled Project" のまま OR 直前まで自動設定
         // (projectNameAutoSet=true) のとき。手動編集すると autoSet=false になり
-        // 上書きされなくなる。embed mode は CMS から init.contentsTitle を受信
-        // するため除外。
+        // 上書きされなくなる。
+        // embed mode (CMS) も対象: edit モードでは contentsTitle が来ているため
+        // projectName は既存タイトルになり autoSet=false で上書きされない。
+        // new モードでは contentsTitle が来ない → "Untitled Project" のまま →
+        // 動画名で自動上書きされる。
         const titleNotManuallyEdited =
             projectName === DEFAULT_PROJECT_NAME || projectNameAutoSet;
-        if (!embedMode && isFirstVideoClip && mediaType === 'video' && titleNotManuallyEdited) {
+        if (isFirstVideoClip && mediaType === 'video' && titleNotManuallyEdited) {
             const baseName = file.name.replace(/\.[^.]+$/, "");
             if (baseName.length > 0) {
                 dispatch(setProjectNameAuto(baseName));
