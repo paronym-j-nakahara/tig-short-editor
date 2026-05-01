@@ -305,30 +305,30 @@ function EditorInner() {
                 )}
             </div>
             <div className="flex flex-row border-t border-gray-500">
-                {FEATURE_FLAGS.enableTimelineSideIcons && (
-                    <div className=" bg-darkSurfacePrimary flex flex-col items-center justify-center mt-20">
-                        <div className="relative h-16">
-                            <div className="flex items-center gap-2 p-4">
-                                <Image
-                                    alt="Video"
-                                    className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
-                                    height={30}
-                                    width={30}
-                                    src="https://www.svgrepo.com/show/532727/video.svg"
-                                />
-                            </div>
+                <div className=" bg-darkSurfacePrimary flex flex-col items-center justify-center mt-20">
+                    <div className="relative h-16">
+                        <div className="flex items-center gap-2 p-4">
+                            <Image
+                                alt="Video"
+                                className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
+                                height={30}
+                                width={30}
+                                src="https://www.svgrepo.com/show/532727/video.svg"
+                            />
                         </div>
-                        <div className="relative h-16">
-                            <div className="flex items-center gap-2 p-4">
-                                <Image
-                                    alt="Video"
-                                    className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
-                                    height={30}
-                                    width={30}
-                                    src="https://www.svgrepo.com/show/532708/music.svg"
-                                />
-                            </div>
+                    </div>
+                    <div className="relative h-16">
+                        <div className="flex items-center gap-2 p-4">
+                            <Image
+                                alt="Video"
+                                className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
+                                height={30}
+                                width={30}
+                                src="https://www.svgrepo.com/show/532708/music.svg"
+                            />
                         </div>
+                    </div>
+                    {FEATURE_FLAGS.enableImageUpload && (
                         <div className="relative h-16">
                             <div className="flex items-center gap-2 p-4">
                                 <Image
@@ -340,6 +340,8 @@ function EditorInner() {
                                 />
                             </div>
                         </div>
+                    )}
+                    {FEATURE_FLAGS.enableText && (
                         <div className="relative h-16">
                             <div className="flex items-center gap-2 p-4">
                                 <Image
@@ -351,8 +353,8 @@ function EditorInner() {
                                 />
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
                 <Timeline />
             </div>
         </div>

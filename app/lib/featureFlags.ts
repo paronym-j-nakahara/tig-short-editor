@@ -11,10 +11,8 @@
 export const FEATURE_FLAGS = {
   /** Text（字幕）挿入機能。Sidebar の Text ボタン + AddText パネル + TextProperties。 */
   enableText: false,
-  /** 画像アップロード。UploadMedia の accept に `image/*` を含めるか。 */
+  /** 画像アップロード。UploadMedia の accept に `image/*` を含めるか。Timeline 左側の Image アイコン段と Image トラック行も連動。 */
   enableImageUpload: false,
-  /** タイムライン左側の Video/Music/Image/Text 段アイコン。 */
-  enableTimelineSideIcons: false,
   /** 右側 Properties パネル（MediaProperties / TextProperties）。 */
   enablePropertiesPanel: false,
   /** Timeline 上部の Track Marker トグルボタン（再生中プレイヘッド追従の ON/OFF）。 */

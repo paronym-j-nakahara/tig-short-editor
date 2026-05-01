@@ -323,13 +323,17 @@ export const Timeline = () => {
                             <AudioTimeline />
                         </div>
 
-                        <div className="relative h-16 z-10">
-                            <ImageTimeline />
-                        </div>
+                        {FEATURE_FLAGS.enableImageUpload && (
+                            <div className="relative h-16 z-10">
+                                <ImageTimeline />
+                            </div>
+                        )}
 
-                        <div className="relative h-16 z-10">
-                            <TextTimeline />
-                        </div>
+                        {FEATURE_FLAGS.enableText && (
+                            <div className="relative h-16 z-10">
+                                <TextTimeline />
+                            </div>
+                        )}
 
                     </div>
                 </div>
