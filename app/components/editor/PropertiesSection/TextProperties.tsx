@@ -4,11 +4,13 @@ import { useAppSelector } from '../../../store';
 import { setActiveElement, setTextElements } from '../../../store/slices/projectSlice';
 import { TextElement } from '../../../types';
 import { useAppDispatch } from '../../../store';
+import { useTranslation } from '@/app/lib/i18n/useTranslation';
 
 export default function TextProperties() {
     const { textElements, activeElementIndex } = useAppSelector((state) => state.projectState);
     const textElement = textElements[activeElementIndex];
     const dispatch = useAppDispatch();
+    const { t } = useTranslation();
 
     const onUpdateText = (id: string, updates: Partial<TextElement>) => {
         dispatch(setTextElements(textElements.map(text =>
@@ -23,7 +25,7 @@ export default function TextProperties() {
             <div className="grid grid-cols-2 gap-8">
                 {/* Text Content */}
                 <div className="space-y-2">
-                    <h4 className="font-semibold">Text Content</h4>
+                    <h4 className="font-semibold">{t('properties.textContent')}</h4>
                     <div>
                         <textarea
                             value={textElement.text}
@@ -35,10 +37,10 @@ export default function TextProperties() {
                 </div>
                 {/* Timing Position */}
                 <div className="space-y-2">
-                    <h4 className="font-semibold">Timing Position</h4>
+                    <h4 className="font-semibold">{t('properties.timingPosition')}</h4>
                     <div className="flex items-center space-x-4">
                         <div>
-                            <label className="block text-sm">Start (s)</label>
+                            <label className="block text-sm">{t('properties.startSec')}</label>
                             <input
                                 type="number"
                                 value={textElement.positionStart}
@@ -52,7 +54,7 @@ export default function TextProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">End (s)</label>
+                            <label className="block text-sm">{t('properties.endSec')}</label>
                             <input
                                 type="number"
                                 readOnly={true}
@@ -68,10 +70,10 @@ export default function TextProperties() {
                 </div>
                 {/* Visual Properties */}
                 <div className="space-y-2">
-                    <h4 className="font-semibold">Visual Properties</h4>
+                    <h4 className="font-semibold">{t('properties.visualProperties')}</h4>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm">X Position</label>
+                            <label className="block text-sm">{t('properties.xPosition')}</label>
                             <input
                                 type="number"
                                 step="10"
@@ -81,7 +83,7 @@ export default function TextProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">Y Position</label>
+                            <label className="block text-sm">{t('properties.yPosition')}</label>
                             <input
                                 type="number"
                                 step="10"
@@ -91,7 +93,7 @@ export default function TextProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">Font Size</label>
+                            <label className="block text-sm">{t('properties.fontSize')}</label>
                             <input
                                 type="number"
                                 step="5"
@@ -112,7 +114,7 @@ export default function TextProperties() {
                         </div> */}
                         {/* Font Type */}
                         <div >
-                            <label className="block text-sm font-medium text-white">Font Type</label>
+                            <label className="block text-sm font-medium text-white">{t('properties.fontType')}</label>
                             <select
                                 value={textElement.font}
                                 onChange={(e) => onUpdateText(textElement.id, { font: e.target.value })}
@@ -128,10 +130,10 @@ export default function TextProperties() {
                 </div>
                 {/* Style Properties */}
                 <div className="space-y-2">
-                    <h4 className="font-semibold">Style Properties</h4>
+                    <h4 className="font-semibold">{t('properties.styleProperties')}</h4>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm">Text Color</label>
+                            <label className="block text-sm">{t('properties.textColor')}</label>
                             <input
                                 type="color"
                                 value={textElement.color || '#ffffff'}
@@ -140,7 +142,7 @@ export default function TextProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">Opacity</label>
+                            <label className="block text-sm">{t('properties.opacity')}</label>
                             <input
                                 type="range"
                                 min="0"
