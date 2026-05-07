@@ -131,4 +131,6 @@ export const mimeToExt = {
     'image/webp': 'webp',
     'video/webm': 'webm',
     // TODO: Add more as needed
+    // mov/avi/mkv は実機検証 (TIG_PF-10692) で FFmpeg WASM が Aborted となり処理不可。
+    // ブラウザ HTML5 video の demuxer も対応外なので、mp4/webm のみが実用形式。
 };
