@@ -1,0 +1,86 @@
+/**
+ * English dictionary (TIG_PF-10689). See `ja.ts` for the placeholder convention.
+ * Keep keys in sync with `ja.ts`.
+ */
+import type { Dictionary } from '../types';
+
+export const en: Dictionary = {
+    common: {
+        loadingProject: 'Loading project...',
+        loadingContent: 'Loading content...',
+        defaultProjectName: 'Untitled Project',
+    },
+    sidebar: {
+        home: 'Home',
+        library: 'Library',
+        export: 'Export',
+        text: 'Text',
+    },
+    buttons: {
+        addMedia: 'Add Media',
+        addText: 'Add Text',
+        split: 'Split',
+        duplicate: 'Duplicate',
+        delete: 'Delete',
+        trackMarker: 'Track Marker',
+        zoom: 'Zoom',
+        render: 'Render',
+        rendering: 'Rendering...',
+        loadingFfmpeg: 'Loading FFmpeg...',
+        cancel: 'Cancel',
+        edit: 'Edit',
+        deleteFile: 'Delete file',
+    },
+    properties: {
+        mediaProperties: 'Media Properties',
+        textProperties: 'Text Properties',
+        sourceVideo: 'Source Video',
+        timingPosition: 'Timing Position',
+        visualProperties: 'Visual Properties',
+        audioProperties: 'Audio Properties',
+        startSec: 'Start (s)',
+        endSec: 'End (s)',
+        xPosition: 'X Position',
+        yPosition: 'Y Position',
+        width: 'Width',
+        height: 'Height',
+        fontSize: 'Font Size',
+        opacity: 'Opacity',
+        volume: 'Volume',
+        zindex: 'Zindex',
+    },
+    exportPanel: {
+        title: 'Export',
+        resolution: 'Resolution',
+        quality: 'Quality',
+        processingSpeed: 'Processing Speed',
+        currentSettings: 'Current settings: {resolution} at {quality} quality ({speed} processing)',
+    },
+    toasts: {
+        mediaAdded: 'Media added successfully.',
+        mediaDeleted: 'Media deleted',
+        videoRendered: 'Video rendered successfully',
+        renderFailed: 'Failed to render video',
+        deleteMediaFailed: 'Failed to delete media',
+        confirmDeleteWithTimeline: 'This media is used in the timeline ({count} item(s)). Deleting it will also remove the timeline references. Continue?',
+        markerOutsideBounds: 'Marker is outside the selected element bounds.',
+        noElementSelected: 'No element selected.',
+        markerOutsideElement: 'Marker is outside the selected element.',
+        elementSplit: 'Element split successfully.',
+        elementDuplicated: 'Element duplicated.',
+        elementDeleted: 'Element deleted.',
+        cannotSplit: 'Cannot split.',
+        cannotDuplicate: 'Cannot duplicate.',
+    },
+    errors: {
+        projectIdRequired: 'Project ID is required.',
+        titleRequired: 'Please enter a title.',
+        contentRequired: 'Please add media.',
+        durationOver: 'Duration is over {max} seconds (currently {actual} seconds).',
+        durationUnder: 'Duration must be at least {min} seconds (currently {actual} seconds).',
+    },
+    ffmpeg: {
+        uploadingToCms: 'Uploading to CMS... {percent}%',
+        tipsExperimental: 'The progress bar is experimental in FFmpeg WASM, so it might appear slow or unresponsive even though the actual processing is not.',
+    },
+};

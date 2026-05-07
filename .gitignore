@@ -30,6 +30,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# firebase deploy cache (firebase deploy が自動生成、コミット不要)
+.firebase/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

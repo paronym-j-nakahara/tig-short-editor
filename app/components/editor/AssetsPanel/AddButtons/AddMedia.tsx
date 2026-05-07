@@ -5,6 +5,7 @@ import { setMediaFiles, setProjectNameAuto } from "../../../../store/slices/proj
 import { setPlayerResolution } from "../../../../store/slices/embedSlice";
 import { storeFile } from "../../../../store";
 import { categorizeFile, probeMediaDimensions, probeVideoHasAudio } from "../../../../utils/utils";
+import { useTranslation } from "@/app/lib/i18n/useTranslation";
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
@@ -15,6 +16,7 @@ export default function AddMedia({ fileId }: { fileId: string }) {
     const { mediaFiles, projectName, projectNameAutoSet } = useAppSelector((state) => state.projectState);
     const playerResolution = useAppSelector((state) => state.embed.playerResolution);
     const dispatch = useAppDispatch();
+    const { t } = useTranslation();
 
     const handleFileChange = async () => {
         if (!fileId) return;
@@ -139,7 +141,7 @@ export default function AddMedia({ fileId }: { fileId: string }) {
             }
         }
 
-        toast.success('Media added successfully.');
+        toast.success(t('toasts.mediaAdded'));
     };
 
     return (

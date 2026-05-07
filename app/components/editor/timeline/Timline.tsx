@@ -12,9 +12,11 @@ import { throttle } from 'lodash';
 import GlobalKeyHandlerProps from "../../../components/editor/keys/GlobalKeyHandlerProps";
 import toast from "react-hot-toast";
 import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
+import { useTranslation } from "@/app/lib/i18n/useTranslation";
 export const Timeline = () => {
     const { currentTime, timelineZoom, enableMarkerTracking, activeElement, activeElementIndex, mediaFiles, textElements, duration, isPlaying } = useAppSelector((state) => state.projectState);
     const dispatch = useDispatch();
+    const { t } = useTranslation();
     const timelineRef = useRef<HTMLDivElement>(null)
 
     const throttledZoom = useMemo(() =>
@@ -30,7 +32,7 @@ export const Timeline = () => {
         let setElements = null;
 
         if (!activeElement) {
-            toast.error('No element selected.');
+            toast.error(t('toasts.noElementSelected'));
             return;
         }
 
@@ -40,14 +42,14 @@ export const Timeline = () => {
             setElements = setMediaFiles;
 
             if (!element) {
-                toast.error('No element selected.');
+                toast.error(t('toasts.noElementSelected'));
                 return;
             }
 
             const { positionStart, positionEnd } = element;
 
             if (currentTime <= positionStart || currentTime >= positionEnd) {
-                toast.error('Marker is outside the selected element bounds.');
+                toast.error(t('toasts.markerOutsideBounds'));
                 return;
             }
 
@@ -84,14 +86,14 @@ export const Timeline = () => {
             setElements = setTextElements;
 
             if (!element) {
-                toast.error('No element selected.');
+                toast.error(t('toasts.noElementSelected'));
                 return;
             }
 
             const { positionStart, positionEnd } = element;
 
             if (currentTime <= positionStart || currentTime >= positionEnd) {
-                toast.error('Marker is outside the selected element.');
+                toast.error(t('toasts.markerOutsideElement'));
                 return;
             }
 
@@ -115,7 +117,7 @@ export const Timeline = () => {
         if (elements && setElements) {
             dispatch(setElements(elements as any));
             dispatch(setActiveElement(null));
-            toast.success('Element split successfully.');
+            toast.success(t('toasts.elementSplit'));
         }
     };
 
@@ -135,7 +137,7 @@ export const Timeline = () => {
         }
 
         if (!element) {
-            toast.error('No element selected.');
+            toast.error(t('toasts.noElementSelected'));
             return;
         }
 
@@ -151,7 +153,7 @@ export const Timeline = () => {
         if (elements && setElements) {
             dispatch(setElements(elements as any));
             dispatch(setActiveElement(null));
-            toast.success('Element duplicated successfully.');
+            toast.success(t('toasts.elementDuplicated'));
         }
     };
 
@@ -172,7 +174,7 @@ export const Timeline = () => {
         }
 
         if (!element) {
-            toast.error('No element selected.');
+            toast.error(t('toasts.noElementSelected'));
             return;
         }
 
@@ -184,7 +186,7 @@ export const Timeline = () => {
         if (elements && setElements) {
             dispatch(setElements(elements as any));
             dispatch(setActiveElement(null));
-            toast.success('Element deleted successfully.');
+            toast.success(t('toasts.elementDeleted'));
         }
     };
 
@@ -227,7 +229,7 @@ export const Timeline = () => {
                                 width={30}
                                 src="https://www.svgrepo.com/show/447315/dismiss.svg"
                             />}
-                            <span className="ml-2">Track Marker <span className="text-xs">(T)</span></span>
+                            <span className="ml-2">{t('buttons.trackMarker')} <span className="text-xs">(T)</span></span>
                         </button>
                     )}
                     {/* Split */}
@@ -242,7 +244,7 @@ export const Timeline = () => {
                             width={30}
                             src="https://www.svgrepo.com/show/509075/cut.svg"
                         />
-                        <span className="ml-2">Split <span className="text-xs">(S)</span></span>
+                        <span className="ml-2">{t('buttons.split')} <span className="text-xs">(S)</span></span>
                     </button>
                     {/* Duplicate */}
                     <button
@@ -256,7 +258,7 @@ export const Timeline = () => {
                             width={30}
                             src="https://www.svgrepo.com/show/521623/duplicate.svg"
                         />
-                        <span className="ml-2">Duplicate <span className="text-xs">(D)</span></span>
+                        <span className="ml-2">{t('buttons.duplicate')} <span className="text-xs">(D)</span></span>
                     </button>
                     {/* Delete */}
                     <button
@@ -270,13 +272,13 @@ export const Timeline = () => {
                             width={30}
                             src="https://www.svgrepo.com/show/511788/delete-1487.svg"
                         />
-                        <span className="ml-2">Delete <span className="text-xs">(Del)</span></span>
+                        <span className="ml-2">{t('buttons.delete')} <span className="text-xs">(Del)</span></span>
                     </button>
                 </div>
 
                 {/* Timeline Zoom */}
                 <div className="flex flex-row justify-between items-center gap-2 mr-4">
-                    <label className="block text-sm mt-1 font-semibold text-white">Zoom</label>
+                    <label className="block text-sm mt-1 font-semibold text-white">{t('buttons.zoom')}</label>
                     <span className="text-white text-lg">-</span>
                     <input
                         type="range"

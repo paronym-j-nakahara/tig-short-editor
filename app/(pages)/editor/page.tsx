@@ -9,6 +9,7 @@ import { setActiveSection } from "../../store/slices/projectSlice";
 import { clearEmbedSession, setEmbedSession } from "../../store/slices/embedSlice";
 import { useEmbedMode } from "@/app/lib/useEmbedMode";
 import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
+import { useTranslation } from "@/app/lib/i18n/useTranslation";
 import { usePostMessageBridge } from "@/app/lib/postMessage/usePostMessageBridge";
 import { sendToParent } from "@/app/lib/postMessage/bridge";
 import { loadAssetsFromUrls } from "@/app/lib/postMessage/loadAssets";
@@ -36,6 +37,7 @@ function EditorInner() {
     const dispatch = useAppDispatch();
     const projectState = useAppSelector((state) => state.projectState);
     const { currentProjectId } = useAppSelector((state) => state.projects);
+    const { t } = useTranslation();
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const embedMode = useEmbedMode();
@@ -83,6 +85,7 @@ function EditorInner() {
                     sessionId: payload.sessionId,
                     upload: payload.upload,
                     playerResolution: payload.ui?.resolution ?? null,
+                    locale: payload.ui?.locale ?? null,
                 }));
 
                 // CMS から受け取ったタイトルを Redux に反映。rehydrate との競合に備えて
@@ -148,7 +151,7 @@ function EditorInner() {
             if (typeof window === 'undefined') return;
 
             if (!id) {
-                setError('Project ID is required.');
+                setError(t('errors.projectIdRequired'));
                 setIsLoading(false);
                 return;
             }
@@ -244,7 +247,7 @@ function EditorInner() {
                         <div className="bg-black bg-opacity-70 p-6 rounded-lg flex flex-col items-center">
                             <div className="w-16 h-16 border-4 border-t-white border-r-white border-opacity-30 border-t-opacity-100 rounded-full animate-spin"></div>
                             <p className="mt-4 text-white text-lg">
-                                {isLoadingAssets ? "Loading content..." : "Loading project..."}
+                                {isLoadingAssets ? t('common.loadingContent') : t('common.loadingProject')}
                             </p>
                         </div>
                     </div>
@@ -276,7 +279,7 @@ function EditorInner() {
                     )}
                     {activeSection === "export" && (
                         <div>
-                            <h2 className="text-lg font-semibold mb-4">Export</h2>
+                            <h2 className="text-lg font-semibold mb-4">{t('exportPanel.title')}</h2>
                             <ExportList />
                         </div>
                     )}

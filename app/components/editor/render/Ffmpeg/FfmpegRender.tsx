@@ -14,6 +14,7 @@ import { uploadBlobToSignedUrl } from "@/app/lib/postMessage/uploadToS3";
 import { generateThumbnailFromVideo } from "@/app/lib/postMessage/generateThumbnail";
 import { MAX_PROJECT_DURATION, MIN_PROJECT_DURATION } from "@/app/lib/limits";
 import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
+import { useTranslation } from "@/app/lib/i18n/useTranslation";
 
 interface FileUploaderProps {
     loadFunction: () => Promise<void>;
@@ -25,6 +26,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
     const { mediaFiles, projectName, exportSettings, duration, textElements } = useAppSelector(state => state.projectState);
     const embedSession = useAppSelector(state => state.embed);
     const embedMode = useEmbedMode();
+    const { t } = useTranslation();
     const totalDuration = duration;
     const videoRef = useRef<HTMLVideoElement>(null);
     const [loaded, setLoaded] = useState(false);
@@ -292,13 +294,13 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 setUploadStatus("uploading");
             }
             setIsRendering(false);
-            toast.success('Video rendered successfully');
+            toast.success(t('toasts.videoRendered'));
 
             if (willUpload) {
                 await uploadRenderedToS3(outputUrl);
             }
         } catch (err) {
-            toast.error('Failed to render video');
+            toast.error(t('toasts.renderFailed'));
             console.error("Failed to render video:", err);
             if (embedMode && embedSession.sessionId) {
                 sendToParent("exportError", {
@@ -427,9 +429,9 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
     const isOverDuration = hasContent && totalDuration > MAX_PROJECT_DURATION;
     const isUnderDuration = hasContent && totalDuration < MIN_PROJECT_DURATION;
     const durationErrorMsg = isOverDuration
-        ? `動画長が ${MAX_PROJECT_DURATION} 秒を超えています（現在 ${totalDuration.toFixed(1)} 秒）`
+        ? t('errors.durationOver', { max: MAX_PROJECT_DURATION, actual: totalDuration.toFixed(1) })
         : isUnderDuration
-            ? `動画長は ${MIN_PROJECT_DURATION} 秒以上にしてください（現在 ${totalDuration.toFixed(1)} 秒）`
+            ? t('errors.durationUnder', { min: MIN_PROJECT_DURATION, actual: totalDuration.toFixed(1) })
             : null;
 
     // ボタンが disabled になる理由をユーザーに常時提示するためのメッセージ。
@@ -437,8 +439,8 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
     // 何が起きているかが分からないと「なぜ Render できないのか」がブラックボックス
     // 化するため、ボタン直下に常時表示する。
     const renderBlockedMsg = isTitleEmpty
-        ? "タイトルを入力してください"
-        : (!hasContent ? "素材を追加してください" : durationErrorMsg);
+        ? t('errors.titleRequired')
+        : (!hasContent ? t('errors.contentRequired') : durationErrorMsg);
 
     return (
         <>
@@ -460,7 +462,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                         <path d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 00-94.3-139.9 437.71 437.71 0 00-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150c47 47 83.9 101.8 109.7 162.7 26.7 63.1 40.2 130.2 40.2 199.3.1 19.9-16 36-35.9 36z"></path>
                     </svg>
                 </span>}
-                <p>{loadFfmpeg ? (isRendering ? 'Rendering...' : 'Render') : 'Loading FFmpeg...'}</p>
+                <p>{loadFfmpeg ? (isRendering ? t('buttons.rendering') : t('buttons.render')) : t('buttons.loadingFfmpeg')}</p>
             </button>
 
             {/* Render が disabled になっている理由を常時表示（TIG_PF-10686） */}
@@ -477,7 +479,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                         {/* Title and close button */}
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-semibold">
-                                {isRendering ? 'Rendering...' : `${projectName}`}
+                                {isRendering ? t('buttons.rendering') : `${projectName}`}
                             </h2>
                             <button
                                 onClick={handleCloseModal}
@@ -494,7 +496,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                                 <div className="bg-black p-2 text-sm font-mono rounded">
                                     <div>{logMessages}</div>
                                     {FEATURE_FLAGS.enableRenderTips && (
-                                        <p className="text-xs text-gray-400 italic">The progress bar is experimental in FFmpeg WASM, so it might appear slow or unresponsive even though the actual processing is not.</p>
+                                        <p className="text-xs text-gray-400 italic">{t('ffmpeg.tipsExperimental')}</p>
                                     )}
                                     <FfmpegProgressBar ffmpeg={ffmpeg} />
                                 </div>
@@ -508,7 +510,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                                     <div className="text-sm">
                                         {uploadStatus === "uploading" && (
                                             <p className="text-gray-200">
-                                                Uploading to CMS… {Math.round(uploadProgress * 100)}%
+                                                {t('ffmpeg.uploadingToCms', { percent: Math.round(uploadProgress * 100) })}
                                             </p>
                                         )}
                                         {uploadStatus === "completed" && (
