@@ -8,7 +8,8 @@ import Image from "next/image";
 import Header from "../Header";
 import { MediaFile } from "@/app/types";
 import { debounce, throttle } from "lodash";
-import { MAX_PROJECT_DURATION } from "@/app/lib/limits";
+// MAX_PROJECT_DURATION 制限はタイムライン上では行わず、Export 時に FfmpegRender 側で
+// チェックする運用に変更（TIG_PF-10686）。
 
 export default function AudioTimeline() {
     const targetRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -51,10 +52,8 @@ export default function AudioTimeline() {
     };
 
     const handleDrag = (clip: MediaFile, target: HTMLElement, left: number) => {
-        // no negative left, and clip 末尾が MAX_PROJECT_DURATION を超えないようにクランプ（TIG_PF-10675）
-        const clipLength = clip.positionEnd - clip.positionStart;
-        const maxLeft = Math.max(0, (MAX_PROJECT_DURATION - clipLength) * timelineZoom);
-        const constrainedLeft = Math.min(Math.max(left, 0), maxLeft);
+        // 負方向への移動だけ防止。180s 上限はタイムライン上では適用しない（TIG_PF-10686）。
+        const constrainedLeft = Math.max(left, 0);
         const newPositionStart = constrainedLeft / timelineZoom;
         onUpdateMedia(clip.id, {
             positionStart: newPositionStart,
@@ -66,12 +65,8 @@ export default function AudioTimeline() {
     };
 
     const handleRightResize = (clip: MediaFile, target: HTMLElement, width: number) => {
-        // 右端リサイズで MAX_PROJECT_DURATION を超えないようにクランプ（TIG_PF-10675）
-        const newPositionEnd = Math.min(width / timelineZoom, MAX_PROJECT_DURATION - clip.positionStart);
-        const clampedWidth = newPositionEnd * timelineZoom;
-        if (clampedWidth < width) {
-            target.style.width = `${clampedWidth}px`;
-        }
+        // 180s 上限はタイムライン上では適用しない（TIG_PF-10686）。
+        const newPositionEnd = width / timelineZoom;
         onUpdateMedia(clip.id, {
             positionEnd: clip.positionStart + newPositionEnd,
             endTime: Math.max(clip.positionStart + newPositionEnd, clip.endTime)

@@ -1,29 +1,24 @@
 "use client";
 
 import { getFile, useAppDispatch, useAppSelector } from "../../../../store";
-import { setMediaFiles } from "../../../../store/slices/projectSlice";
+import { setMediaFiles, setProjectNameAuto } from "../../../../store/slices/projectSlice";
+import { setPlayerResolution } from "../../../../store/slices/embedSlice";
 import { storeFile } from "../../../../store";
 import { categorizeFile, probeMediaDimensions, probeVideoHasAudio } from "../../../../utils/utils";
-import { MAX_PROJECT_DURATION } from "../../../../lib/limits";
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
+const DEFAULT_PROJECT_NAME = "Untitled Project";
+const NEW_CLIP_DURATION_SEC = 30;
+
 export default function AddMedia({ fileId }: { fileId: string }) {
-    const { mediaFiles, duration: projectDuration } = useAppSelector((state) => state.projectState);
+    const { mediaFiles, projectName, projectNameAutoSet } = useAppSelector((state) => state.projectState);
     const playerResolution = useAppSelector((state) => state.embed.playerResolution);
     const dispatch = useAppDispatch();
 
     const handleFileChange = async () => {
         if (!fileId) return;
         const updatedMedia = [...mediaFiles];
-
-        // タイムライン全長 180 秒上限の UX ガード（TIG_PF-10675）
-        // 上限判定はトラック横断のプロジェクト全体 duration を根拠にする
-        // （type 別 lastEnd だと video 0 秒 + audio 180 秒のときに video 追加をすり抜ける）。
-        if (projectDuration >= MAX_PROJECT_DURATION) {
-            toast.error(`タイムライン上限 ${MAX_PROJECT_DURATION} 秒に達しているため追加できません`);
-            return;
-        }
 
         const file = await getFile(fileId);
         const mediaId = crypto.randomUUID();
@@ -51,36 +46,56 @@ export default function AddMedia({ fileId }: { fileId: string }) {
             hasAudio = false;
         }
 
+        // 動画/画像なら寸法を probe。後で canvas inscribe / 自動キャンバス調整に使う。
+        let dims: { width: number; height: number } | null = null;
+        if (mediaType === 'video' || mediaType === 'image') {
+            try {
+                const probed = await probeMediaDimensions(file, mediaType);
+                if (probed && probed.width > 0 && probed.height > 0) {
+                    dims = { width: probed.width, height: probed.height };
+                }
+            } catch (err) {
+                console.warn('Failed to probe media dimensions, using canvas default:', err);
+            }
+        }
+
+        // 「最初に Add される動画」のとき、Composition のキャンバス解像度を動画解像度に
+        // 合わせる（TIG_PF-10686）。embed mode でも発火させる（CMS が ui.resolution で
+        // 1080x1920 を初期指定していても、ユーザーが実際に Add した動画の解像度に追従させる）。
+        // 全トラック横断ではなく video トラックのみで判定（音声を先に Add しても動画自動調整は発火する）。
+        const isFirstVideoClip = !mediaFiles.some(f => f.type === 'video');
+        const shouldAutoResize = isFirstVideoClip && mediaType === 'video' && dims;
+        if (shouldAutoResize) {
+            dispatch(setPlayerResolution({ width: dims!.width, height: dims!.height }));
+        }
+
+        // 上記 dispatch は非同期反映のため、この関数内では canvasW/H にローカル値を使う。
+        const canvasW = shouldAutoResize ? dims!.width : (playerResolution?.width ?? 1920);
+        const canvasH = shouldAutoResize ? dims!.height : (playerResolution?.height ?? 1080);
+
         // Player キャンバスに対して inscribe (アスペクト比保持で中央配置) する。
         // probe 失敗時はキャンバス全面 fit にフォールバック。
-        const canvasW = playerResolution?.width ?? 1920;
-        const canvasH = playerResolution?.height ?? 1080;
         let elementW = canvasW;
         let elementH = canvasH;
         let cropW = canvasW;
         let cropH = canvasH;
         let posX = 0;
         let posY = 0;
-        if (mediaType === 'video' || mediaType === 'image') {
-            const dims = await probeMediaDimensions(file, mediaType);
-            if (dims && dims.width > 0 && dims.height > 0) {
-                cropW = dims.width;
-                cropH = dims.height;
-                const scale = Math.min(canvasW / dims.width, canvasH / dims.height);
-                elementW = Math.round(dims.width * scale);
-                elementH = Math.round(dims.height * scale);
-                posX = Math.round((canvasW - elementW) / 2);
-                posY = Math.round((canvasH - elementH) / 2);
-            }
+        if (dims) {
+            cropW = dims.width;
+            cropH = dims.height;
+            const scale = Math.min(canvasW / dims.width, canvasH / dims.height);
+            elementW = Math.round(dims.width * scale);
+            elementH = Math.round(dims.height * scale);
+            posX = Math.round((canvasW - elementW) / 2);
+            posY = Math.round((canvasH - elementH) / 2);
         }
 
-        // 新規クリップの positionEnd が MAX_PROJECT_DURATION を超えないようにクランプ（TIG_PF-10675）
-        const desiredEnd = lastEnd + 30;
-        const clampedEnd = Math.min(desiredEnd, MAX_PROJECT_DURATION);
-        const clipDuration = clampedEnd - lastEnd;
-        if (clampedEnd < desiredEnd) {
-            toast(`タイムライン上限 ${MAX_PROJECT_DURATION} 秒に合わせて ${clipDuration.toFixed(1)} 秒にトリミングしました`);
-        }
+        // 新規クリップは末尾に NEW_CLIP_DURATION_SEC 秒追加。
+        // 180s 上限のクランプはタイムライン上では行わず、Export 時に FfmpegRender
+        // 側でガードする（TIG_PF-10686）。
+        const clipDuration = NEW_CLIP_DURATION_SEC;
+        const clampedEnd = lastEnd + clipDuration;
         updatedMedia.push({
             id: mediaId,
             fileName: file.name,
@@ -105,6 +120,25 @@ export default function AddMedia({ fileId }: { fileId: string }) {
             hasAudio,
         });
         dispatch(setMediaFiles(updatedMedia));
+
+        // 「初回動画 Add」かつタイトルが未編集相当なら、ファイル名（拡張子除く）を
+        // 自動タイトルに設定する（TIG_PF-10686）。
+        // 未編集判定: 初期 "Untitled Project" のまま OR 直前まで自動設定
+        // (projectNameAutoSet=true) のとき。手動編集すると autoSet=false になり
+        // 上書きされなくなる。
+        // embed mode (CMS) も対象: edit モードでは contentsTitle が来ているため
+        // projectName は既存タイトルになり autoSet=false で上書きされない。
+        // new モードでは contentsTitle が来ない → "Untitled Project" のまま →
+        // 動画名で自動上書きされる。
+        const titleNotManuallyEdited =
+            projectName === DEFAULT_PROJECT_NAME || projectNameAutoSet;
+        if (isFirstVideoClip && mediaType === 'video' && titleNotManuallyEdited) {
+            const baseName = file.name.replace(/\.[^.]+$/, "");
+            if (baseName.length > 0) {
+                dispatch(setProjectNameAuto(baseName));
+            }
+        }
+
         toast.success('Media added successfully.');
     };
 

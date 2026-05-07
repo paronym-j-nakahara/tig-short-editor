@@ -46,8 +46,16 @@ const embedSlice = createSlice({
             state.upload = null;
             state.playerResolution = null;
         },
+        /**
+         * Player キャンバス解像度のみを更新する（embed セッション情報は触らない）。
+         * standalone (non-embed) モードで最初に Add Media された動画の画角に
+         * Composition を合わせる用途で使用する（TIG_PF-10686）。
+         */
+        setPlayerResolution: (state, action: PayloadAction<{ width: number; height: number } | null>) => {
+            state.playerResolution = action.payload;
+        },
     },
 });
 
-export const { setEmbedSession, clearEmbedSession } = embedSlice.actions;
+export const { setEmbedSession, clearEmbedSession, setPlayerResolution } = embedSlice.actions;
 export default embedSlice.reducer;
