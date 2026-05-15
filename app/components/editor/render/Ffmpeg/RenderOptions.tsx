@@ -1,9 +1,11 @@
 import { useAppSelector } from '@/app/store';
 import { useAppDispatch } from '@/app/store';
 import { setResolution, setQuality, setSpeed } from '@/app/store/slices/projectSlice';
+import { useTranslation } from '@/app/lib/i18n/useTranslation';
 export default function RenderOptions() {
     const { exportSettings } = useAppSelector(state => state.projectState);
     const dispatch = useAppDispatch();
+    const { t } = useTranslation();
 
     return (
         <div className="relative">
@@ -14,7 +16,7 @@ export default function RenderOptions() {
                             <div>
 
                                 {/* Resolution Setting */}
-                                <label className="text-l font-bold mb-2 text-white">Resolution</label>
+                                <label className="text-l font-bold mb-2 text-white">{t('exportPanel.resolution')}</label>
                                 <select
                                     value={exportSettings.resolution}
                                     onChange={(e) => dispatch(setResolution(e.target.value))}
@@ -30,7 +32,7 @@ export default function RenderOptions() {
 
                             {/* Quality Setting */}
                             <div>
-                                <label className="text-l font-bold mb-2 text-white">Quality</label>
+                                <label className="text-l font-bold mb-2 text-white">{t('exportPanel.quality')}</label>
                                 <select
                                     value={exportSettings.quality}
                                     onChange={(e) => dispatch(setQuality(e.target.value))}
@@ -45,7 +47,7 @@ export default function RenderOptions() {
 
                             {/* Processing Speed Setting */}
                             <div>
-                                <label className="text-l font-bold mb-2 text-white">Processing Speed</label>
+                                <label className="text-l font-bold mb-2 text-white">{t('exportPanel.processingSpeed')}</label>
                                 <select
                                     value={exportSettings.speed}
                                     onChange={(e) => dispatch(setSpeed(e.target.value))}
@@ -62,7 +64,7 @@ export default function RenderOptions() {
 
                     </div>
                     <div className="mt-4 text-sm text-gray-600">
-                        <p>Current settings: {exportSettings.resolution} at {exportSettings.quality} quality ({exportSettings.speed} processing)</p>
+                        <p>{t('exportPanel.currentSettings', { resolution: exportSettings.resolution, quality: exportSettings.quality, speed: exportSettings.speed })}</p>
                     </div>
                 </div>
             </div>

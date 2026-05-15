@@ -12,6 +12,9 @@ import { useEmbedMode } from "@/app/lib/useEmbedMode";
 import { sendToParent } from "@/app/lib/postMessage/bridge";
 import { uploadBlobToSignedUrl } from "@/app/lib/postMessage/uploadToS3";
 import { generateThumbnailFromVideo } from "@/app/lib/postMessage/generateThumbnail";
+import { MAX_PROJECT_DURATION, MIN_PROJECT_DURATION } from "@/app/lib/limits";
+import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
+import { useTranslation } from "@/app/lib/i18n/useTranslation";
 
 interface FileUploaderProps {
     loadFunction: () => Promise<void>;
@@ -23,6 +26,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
     const { mediaFiles, projectName, exportSettings, duration, textElements } = useAppSelector(state => state.projectState);
     const embedSession = useAppSelector(state => state.embed);
     const embedMode = useEmbedMode();
+    const { t } = useTranslation();
     const totalDuration = duration;
     const videoRef = useRef<HTMLVideoElement>(null);
     const [loaded, setLoaded] = useState(false);
@@ -68,8 +72,14 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 const inputs = [];
                 const audioDelays = [];
 
-                // Create base black background
-                filters.push(`color=c=black:size=1920x1080:d=${totalDuration.toFixed(3)}[base]`);
+                // Create base black background.
+                // Player canvas (embed.playerResolution) と一致させないと、
+                // MediaFile.x/y/width/height が Player 基準で計算されているため
+                // Export 出力で座標がズレて動画が canvas 外にはみ出す。
+                // standalone (非 embed) のときは null なので 1920x1080 にフォールバック。
+                const baseW = embedSession.playerResolution?.width ?? 1920;
+                const baseH = embedSession.playerResolution?.height ?? 1080;
+                filters.push(`color=c=black:size=${baseW}x${baseH}:d=${totalDuration.toFixed(3)}[base]`);
                 // Sort videos by zIndex ascending (lowest drawn first)
                 const sortedMediaFiles = [...mediaFiles].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
@@ -178,7 +188,9 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 // Apply text 
                 if (textElements.length > 0) {
                     // load fonts
-                    let fonts = ['Arial', 'Inter', 'Lato'];
+                    // 識別子はスペースなし英数のみで揃える (drawtext fontfile で空白がエスケープ問題を起こすため)。
+                    // NotoSansJP は Variable TTF (JP subset, ~9.6MB) で日本語グリフを提供する。
+                    let fonts = ['Arial', 'Inter', 'Lato', 'NotoSansJP'];
                     for (let i = 0; i < fonts.length; i++) {
                         const font = fonts[i];
                         const res = await fetch(`/fonts/${font}.ttf`);
@@ -282,13 +294,13 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 setUploadStatus("uploading");
             }
             setIsRendering(false);
-            toast.success('Video rendered successfully');
+            toast.success(t('toasts.videoRendered'));
 
             if (willUpload) {
                 await uploadRenderedToS3(outputUrl);
             }
         } catch (err) {
-            toast.error('Failed to render video');
+            toast.error(t('toasts.renderFailed'));
             console.error("Failed to render video:", err);
             if (embedMode && embedSession.sessionId) {
                 sendToParent("exportError", {
@@ -371,6 +383,14 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 console.warn("[postMessage] thumbnail upload failed (best effort)", thumbSettled.reason);
             }
 
+            // 動画自体のサイズは Player canvas (= Export base canvas) と一致する。
+            // thumbnail.width/height は webp 縮小後で動画サイズと違うこと、
+            // また thumbnail 生成失敗時に 0 になり movies テーブルに 0 が入って
+            // tig-creator-player で `--video-aspect-ratio: NaN` になる事故が起きる。
+            // Player canvas を真として送信する (フォールバック: thumbnail → 1080x1920)。
+            const videoW = embedSession.playerResolution?.width ?? thumbnail?.width ?? 1080;
+            const videoH = embedSession.playerResolution?.height ?? thumbnail?.height ?? 1920;
+
             sendToParent("exportComplete", {
                 sessionId,
                 s3Key: videoSettled.value.s3Key,
@@ -378,8 +398,8 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                 fileName: `${projectName}.mp4`,
                 fileSize: videoSettled.value.fileSize,
                 duration: totalDuration,
-                width: thumbnail?.width ?? 0,
-                height: thumbnail?.height ?? 0,
+                width: videoW,
+                height: videoH,
                 mimeType: contentType,
                 // CMS で contents.title として保存される。空タイトルは Render ボタンで
                 // 既に弾いているが、防衛的に trim した値を送る。
@@ -404,14 +424,32 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
     // Render を許可しない（CMS 側で contents.title としてバリデーションが走る前提）。
     const isTitleEmpty = embedMode && projectName.trim().length === 0;
 
+    // 動画長バリデーション（TIG_PF-10675）。CMS 側 creator.min/max_video_duration と整合。
+    const hasContent = mediaFiles.length > 0 || textElements.length > 0;
+    const isOverDuration = hasContent && totalDuration > MAX_PROJECT_DURATION;
+    const isUnderDuration = hasContent && totalDuration < MIN_PROJECT_DURATION;
+    const durationErrorMsg = isOverDuration
+        ? t('errors.durationOver', { max: MAX_PROJECT_DURATION, actual: totalDuration.toFixed(1) })
+        : isUnderDuration
+            ? t('errors.durationUnder', { min: MIN_PROJECT_DURATION, actual: totalDuration.toFixed(1) })
+            : null;
+
+    // ボタンが disabled になる理由をユーザーに常時提示するためのメッセージ。
+    // タイムライン側の 180s 上限ガードを撤廃した（TIG_PF-10686）ので、ここで
+    // 何が起きているかが分からないと「なぜ Render できないのか」がブラックボックス
+    // 化するため、ボタン直下に常時表示する。
+    const renderBlockedMsg = isTitleEmpty
+        ? t('errors.titleRequired')
+        : (!hasContent ? t('errors.contentRequired') : durationErrorMsg);
+
     return (
         <>
             {/* Render Button */}
             <button
                 onClick={() => render()}
                 className={`inline-flex items-center p-3 bg-white hover:bg-[#ccc] rounded-lg disabled:opacity-50 text-gray-900 font-bold transition-all transform`}
-                disabled={(!loadFfmpeg || isRendering || isTitleEmpty || (mediaFiles.length === 0 && textElements.length === 0))}
-                title={isTitleEmpty ? "タイトルを入力してください" : undefined}
+                disabled={(!loadFfmpeg || isRendering || isTitleEmpty || isOverDuration || isUnderDuration || !hasContent)}
+                title={renderBlockedMsg ?? undefined}
             >
                 {(!loadFfmpeg || isRendering) && <span className="animate-spin mr-2">
                     <svg
@@ -424,8 +462,15 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                         <path d="M988 548c-19.9 0-36-16.1-36-36 0-59.4-11.6-117-34.6-171.3a440.45 440.45 0 00-94.3-139.9 437.71 437.71 0 00-139.9-94.3C629 83.6 571.4 72 512 72c-19.9 0-36-16.1-36-36s16.1-36 36-36c69.1 0 136.2 13.5 199.3 40.3C772.3 66 827 103 874 150c47 47 83.9 101.8 109.7 162.7 26.7 63.1 40.2 130.2 40.2 199.3.1 19.9-16 36-35.9 36z"></path>
                     </svg>
                 </span>}
-                <p>{loadFfmpeg ? (isRendering ? 'Rendering...' : 'Render') : 'Loading FFmpeg...'}</p>
+                <p>{loadFfmpeg ? (isRendering ? t('buttons.rendering') : t('buttons.render')) : t('buttons.loadingFfmpeg')}</p>
             </button>
+
+            {/* Render が disabled になっている理由を常時表示（TIG_PF-10686） */}
+            {renderBlockedMsg && (
+                <p className="mt-2 text-xs text-red-400 leading-snug">
+                    {renderBlockedMsg}
+                </p>
+            )}
 
             {/* Render Modal */}
             {showModal && (
@@ -434,7 +479,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                         {/* Title and close button */}
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-semibold">
-                                {isRendering ? 'Rendering...' : `${projectName}`}
+                                {isRendering ? t('buttons.rendering') : `${projectName}`}
                             </h2>
                             <button
                                 onClick={handleCloseModal}
@@ -447,9 +492,12 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
 
                         {isRendering ? (
                             <div>
-                                <div className="bg-black p-2 h-40 text-sm font-mono rounded">
+                                {/* <div className="bg-black p-2 h-40 text-sm font-mono rounded"> */}
+                                <div className="bg-black p-2 text-sm font-mono rounded">
                                     <div>{logMessages}</div>
-                                    <p className="text-xs text-gray-400 italic">The progress bar is experimental in FFmpeg WASM, so it might appear slow or unresponsive even though the actual processing is not.</p>
+                                    {FEATURE_FLAGS.enableRenderTips && (
+                                        <p className="text-xs text-gray-400 italic">{t('ffmpeg.tipsExperimental')}</p>
+                                    )}
                                     <FfmpegProgressBar ffmpeg={ffmpeg} />
                                 </div>
                             </div>
@@ -462,7 +510,7 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
                                     <div className="text-sm">
                                         {uploadStatus === "uploading" && (
                                             <p className="text-gray-200">
-                                                Uploading to CMS… {Math.round(uploadProgress * 100)}%
+                                                {t('ffmpeg.uploadingToCms', { percent: Math.round(uploadProgress * 100) })}
                                             </p>
                                         )}
                                         {uploadStatus === "completed" && (

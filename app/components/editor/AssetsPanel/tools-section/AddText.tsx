@@ -5,8 +5,10 @@ import { TextElement } from '../../../../types';
 import { useAppDispatch, useAppSelector } from '../../../../store';
 import { setResolution, setTextElements } from '../../../../store/slices/projectSlice';
 import toast from 'react-hot-toast';
+import { useTranslation } from '@/app/lib/i18n/useTranslation';
 
 export default function AddTextButton() {
+    const { t } = useTranslation();
     const [textConfig, setTextConfig] = useState<Partial<TextElement>>({
         text: 'Example',
         positionStart: 0,
@@ -71,7 +73,7 @@ export default function AddTextButton() {
             rotation: 0,
             animation: 'none'
         });
-        toast.success('Text added successfully.');
+        toast.success(t('toasts.textAdded'));
     };
 
     return (
@@ -82,7 +84,7 @@ export default function AddTextButton() {
                         <div className="space-y-8">
                             {/* Text Content */}
                             <div>
-                                <label className="text-xl font-bold mb-2 text-white">Text Content</label>
+                                <label className="text-xl font-bold mb-2 text-white">{t('properties.textContent')}</label>
                                 <textarea
                                     value={textConfig.text}
                                     onChange={(e) => setTextConfig({ ...textConfig, text: e.target.value })}
@@ -93,7 +95,7 @@ export default function AddTextButton() {
                             {/* Start and End Time */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-white">Start Time (s)</label>
+                                    <label className="block text-sm font-medium text-white">{t('properties.startTime')}</label>
                                     <input
                                         type="number"
                                         value={textConfig.positionStart}
@@ -103,7 +105,7 @@ export default function AddTextButton() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-white">End Time (s)</label>
+                                    <label className="block text-sm font-medium text-white">{t('properties.endTime')}</label>
                                     <input
                                         type="number"
                                         value={textConfig.positionEnd}
@@ -117,7 +119,7 @@ export default function AddTextButton() {
                             {/* Position */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-white">X Position</label>
+                                    <label className="block text-sm font-medium text-white">{t('properties.xPosition')}</label>
                                     <input
                                         type="number"
                                         value={textConfig.x}
@@ -126,7 +128,7 @@ export default function AddTextButton() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-white">Y Position</label>
+                                    <label className="block text-sm font-medium text-white">{t('properties.yPosition')}</label>
                                     <input
                                         type="number"
                                         value={textConfig.y}
@@ -139,7 +141,7 @@ export default function AddTextButton() {
                             {/* Font Size and Z-Index */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-white">Font Size</label>
+                                    <label className="block text-sm font-medium text-white">{t('properties.fontSize')}</label>
                                     <input
                                         type="number"
                                         value={textConfig.fontSize}
@@ -150,7 +152,7 @@ export default function AddTextButton() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-white">Z-Index</label>
+                                    <label className="block text-sm font-medium text-white">{t('properties.zindex')}</label>
                                     <input
                                         type="number"
                                         value={textConfig.zIndex}
@@ -164,7 +166,7 @@ export default function AddTextButton() {
                             {/* Font Type */}
                             <div className="grid grid-cols-1 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-white">Font Type</label>
+                                    <label className="block text-sm font-medium text-white">{t('properties.fontType')}</label>
                                     <select
                                         value={textConfig.font}
                                         onChange={(e) => setTextConfig({ ...textConfig, font: e.target.value })}
@@ -173,6 +175,7 @@ export default function AddTextButton() {
                                         <option value="Arial">Arial</option>
                                         <option value="Inter">Inter</option>
                                         <option value="Lato">Lato</option>
+                                        <option value="NotoSansJP">Noto Sans JP (日本語)</option>
                                     </select>
                                 </div>
                             </div>
@@ -180,7 +183,7 @@ export default function AddTextButton() {
                             {/* Text Color and Add Text Button */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-white">Text Color</label>
+                                    <label className="block text-sm font-medium text-white">{t('properties.textColor')}</label>
                                     <input
                                         type="color"
                                         value={textConfig.color}
@@ -193,7 +196,7 @@ export default function AddTextButton() {
                                         onClick={handleAddText}
                                         className="px-4 py-2 bg-white text-black hover:bg-[#ccc] rounded"
                                     >
-                                        Add Text
+                                        {t('buttons.addText')}
                                     </button>
                                 </div>
                             </div>

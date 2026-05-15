@@ -3,6 +3,7 @@ import { useAppSelector } from "@/app/store";
 import { useEffect, useRef, useState } from "react";
 import { setIsPlaying, setIsMuted, setCurrentTime, setMarkerTrack } from "@/app/store/slices/projectSlice";
 import { useDispatch } from "react-redux";
+import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
 
 interface GlobalKeyHandlerProps {
     handleDuplicate: () => void;
@@ -71,8 +72,12 @@ const GlobalKeyHandler = ({ handleDuplicate, handleSplit, handleDelete }: Global
                     handleDelete();
                     break;
                 case 'KeyT':
-                    e.preventDefault();
-                    dispatch(setMarkerTrack(!enableMarkerTrackingRef.current));
+                    // トグル UI を非表示にしている場合、ショートカットでも state を変更しない
+                    // （UI 不整合の防止）。フラグを true に戻すと両方とも復活する。
+                    if (FEATURE_FLAGS.enableTrackMarkerToggle) {
+                        e.preventDefault();
+                        dispatch(setMarkerTrack(!enableMarkerTrackingRef.current));
+                    }
                     break;
                 case 'ArrowRight':
                     e.preventDefault();

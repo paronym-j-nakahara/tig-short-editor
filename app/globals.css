@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Noto Sans JP (Variable Font, JP subset) — 日本語テキスト要素用。
+ * FFmpeg drawtext と Remotion Composition の両方で同じ識別子を使う。
+ * public/fonts/NotoSansJP.ttf を直接ホスティングする。 */
+@font-face {
+    font-family: 'NotoSansJP';
+    src: url('/fonts/NotoSansJP.ttf') format('truetype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
 .moveable-origin {
     display: none !important;
 }

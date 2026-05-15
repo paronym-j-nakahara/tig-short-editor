@@ -7,10 +7,12 @@ import { useAppDispatch } from '@/app/store';
 import AddMedia from '../AddButtons/AddMedia';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useTranslation } from '@/app/lib/i18n/useTranslation';
 export default function MediaList() {
     const { mediaFiles, filesID } = useAppSelector((state) => state.projectState);
     const dispatch = useAppDispatch();
     const [files, setFiles] = useState<UploadedFile[]>([]);
+    const { t } = useTranslation();
 
     useEffect(() => {
         let mounted = true;
@@ -50,10 +52,8 @@ export default function MediaList() {
         const initialUsage = mediaFiles.filter(f => f.fileId === id);
 
         if (initialUsage.length > 0) {
-            const itemLabel = initialUsage.length > 1 ? "items" : "item";
             const confirmed = window.confirm(
-                `This media is used in the timeline (${initialUsage.length} ${itemLabel}). ` +
-                `Deleting it will also remove the timeline references. Continue?`
+                t('toasts.confirmDeleteWithTimeline', { count: initialUsage.length })
             );
             if (!confirmed) return;
         }
@@ -70,7 +70,7 @@ export default function MediaList() {
             await deleteFile(id);
         } catch (error) {
             console.error("Failed to delete file from IndexedDB:", error);
-            toast.error("Failed to delete media");
+            toast.error(t('toasts.deleteMediaFailed'));
             return;
         }
 
@@ -80,7 +80,7 @@ export default function MediaList() {
             }
         });
 
-        toast.success("Media deleted");
+        toast.success(t('toasts.mediaDeleted'));
     };
 
     return (

@@ -8,6 +8,8 @@ import { appendFilesID, rehydrate, setMediaFiles, setProjectName } from '../../s
 import { setActiveSection } from "../../store/slices/projectSlice";
 import { clearEmbedSession, setEmbedSession } from "../../store/slices/embedSlice";
 import { useEmbedMode } from "@/app/lib/useEmbedMode";
+import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
+import { useTranslation } from "@/app/lib/i18n/useTranslation";
 import { usePostMessageBridge } from "@/app/lib/postMessage/usePostMessageBridge";
 import { sendToParent } from "@/app/lib/postMessage/bridge";
 import { loadAssetsFromUrls } from "@/app/lib/postMessage/loadAssets";
@@ -36,10 +38,17 @@ function EditorInner() {
     const dispatch = useAppDispatch();
     const projectState = useAppSelector((state) => state.projectState);
     const { currentProjectId } = useAppSelector((state) => state.projects);
+    const { t } = useTranslation();
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const embedMode = useEmbedMode();
     const [bridgeReady, setBridgeReady] = useState(false);
+    /**
+     * `init.assets` を S3 GET URL から fetch している間 true。
+     * edit モードで CMS から既存コンテンツを読み込む間ユーザーへフィードバックする
+     * （TIG_PF-10627 / 動画編集起動時のローディング）。
+     */
+    const [isLoadingAssets, setIsLoadingAssets] = useState(false);
     /**
      * `init.contentsTitle` を受信したタイミングと rehydrate 完了タイミングは前後しうるため、
      * 受信値を ref に保持し rehydrate 後にも反映する（CMS から来た title を優先）。
@@ -69,13 +78,20 @@ function EditorInner() {
             // 失敗した asset は failedAssets として initAck で CMS に返却する。
             // TODO(Phase 1 後半): onClose / closeRequest 時に embed mode で取り込んだ
             //   IndexedDB の fileId と blob を deleteFile() で削除すること（残骸防止）
+            const incomingAssets = payload.assets ?? [];
             try {
+                // assets を fetch し始める前にローディングを立てる。setIsLoadingAssets(false)
+                // は finally 側で常に呼ぶ（冪等）。複数回 init が来ても確実にリセットされる。
+                if (incomingAssets.length > 0) {
+                    setIsLoadingAssets(true);
+                }
                 // embed session を Redux に保存（FfmpegRender が upload PUT URL を参照する）
                 // ui.resolution があれば Player のキャンバスサイズも反映する（縦動画 9:16 など）
                 dispatch(setEmbedSession({
                     sessionId: payload.sessionId,
                     upload: payload.upload,
                     playerResolution: payload.ui?.resolution ?? null,
+                    locale: payload.ui?.locale ?? null,
                 }));
 
                 // CMS から受け取ったタイトルを Redux に反映。rehydrate との競合に備えて
@@ -85,12 +101,12 @@ function EditorInner() {
                     dispatch(setProjectName(payload.contentsTitle));
                 }
 
-                const incomingAssets = payload.assets ?? [];
                 const { loaded, failed } = await loadAssetsFromUrls(incomingAssets);
                 if (loaded.length > 0) {
                     const fileIds = loaded.map((l) => l.fileId);
                     dispatch(appendFilesID(fileIds));
-                    // state 更新で下の useEffect が発火し、rehydrate との競合があっても再復元される
+                    // state 更新で下の useEffect が発火し、rehydrate との競合があっても再復元される。
+                    // edit モードでも Library への追加のみで、タイムラインへの自動配置は行わない（TIG_PF-10682）。
                     setPendingAssetFileIds((prev) => [...prev, ...fileIds]);
 
                     // edit モードのみ: コンテンツ動画を初期状態でタイムラインに add する
@@ -200,6 +216,8 @@ function EditorInner() {
                     code: "INVALID_PAYLOAD",
                     message,
                 });
+            } finally {
+                setIsLoadingAssets(false);
             }
         },
         onClose: (payload) => {
@@ -233,7 +251,7 @@ function EditorInner() {
             if (typeof window === 'undefined') return;
 
             if (!id) {
-                setError('Project ID is required.');
+                setError(t('errors.projectIdRequired'));
                 setIsLoading(false);
                 return;
             }
@@ -298,6 +316,15 @@ function EditorInner() {
         dispatch(setMediaFiles([...projectState.mediaFiles, ...toAdd]));
     }, [dispatch, pendingAssetMediaFiles, projectState.mediaFiles, currentProjectId]);
 
+    // FEATURE_FLAGS.enableText が false のとき、IndexedDB に保存された
+    // activeSection === "text" が rehydrate されてしまうと中央パネルが空欄になり
+    // ユーザーが抜け出せないので、media に補正する。
+    useEffect(() => {
+        if (!FEATURE_FLAGS.enableText && projectState.activeSection === "text") {
+            dispatch(setActiveSection("media"));
+        }
+    }, [dispatch, projectState.activeSection]);
+
     useEffect(() => {
         const saveProject = async () => {
             if (!projectState || projectState.id !== currentProjectId) return;
@@ -325,11 +352,13 @@ function EditorInner() {
     return (
         <div className="flex flex-col h-screen select-none">
             {
-                isLoading ? (
+                (isLoading || isLoadingAssets) ? (
                     <div className="fixed inset-0 flex items-center bg-black bg-opacity-50 justify-center z-50">
                         <div className="bg-black bg-opacity-70 p-6 rounded-lg flex flex-col items-center">
                             <div className="w-16 h-16 border-4 border-t-white border-r-white border-opacity-30 border-t-opacity-100 rounded-full animate-spin"></div>
-                            <p className="mt-4 text-white text-lg">Loading project...</p>
+                            <p className="mt-4 text-white text-lg">
+                                {isLoadingAssets ? t('common.loadingContent') : t('common.loadingProject')}
+                            </p>
                         </div>
                     </div>
                 ) : null
@@ -338,7 +367,7 @@ function EditorInner() {
                 <div className="flex-[0.1] min-w-[60px] max-w-[100px] border-r border-gray-700 overflow-y-auto p-4">
                     <div className="flex flex-col space-y-2">
                         <HomeButton />
-                        <TextButton onClick={() => handleFocus("text")} />
+                        {FEATURE_FLAGS.enableText && <TextButton onClick={() => handleFocus("text")} />}
                         <LibraryButton onClick={() => handleFocus("media")} />
                         <ExportButton onClick={() => handleFocus("export")} />
                     </div>
@@ -353,14 +382,14 @@ function EditorInner() {
                             <MediaList />
                         </div>
                     )}
-                    {activeSection === "text" && (
+                    {FEATURE_FLAGS.enableText && activeSection === "text" && (
                         <div>
                             <AddText />
                         </div>
                     )}
                     {activeSection === "export" && (
                         <div>
-                            <h2 className="text-lg font-semibold mb-4">Export</h2>
+                            <h2 className="text-lg font-semibold mb-4">{t('exportPanel.title')}</h2>
                             <ExportList />
                         </div>
                     )}
@@ -371,20 +400,22 @@ function EditorInner() {
                     <PreviewPlayer />
                 </div>
 
-                <div className="flex-[0.4] min-w-[200px] border-l border-gray-800 overflow-y-auto p-4">
-                    {activeElement === "media" && (
-                        <div>
-                            <h2 className="text-lg font-semibold mb-4">Media Properties</h2>
-                            <MediaProperties />
-                        </div>
-                    )}
-                    {activeElement === "text" && (
-                        <div>
-                            <h2 className="text-lg font-semibold mb-4">Text Properties</h2>
-                            <TextProperties />
-                        </div>
-                    )}
-                </div>
+                {FEATURE_FLAGS.enablePropertiesPanel && (
+                    <div className="flex-[0.4] min-w-[200px] border-l border-gray-800 overflow-y-auto p-4">
+                        {activeElement === "media" && (
+                            <div>
+                                <h2 className="text-lg font-semibold mb-4">Media Properties</h2>
+                                <MediaProperties />
+                            </div>
+                        )}
+                        {FEATURE_FLAGS.enableText && activeElement === "text" && (
+                            <div>
+                                <h2 className="text-lg font-semibold mb-4">Text Properties</h2>
+                                <TextProperties />
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
             <div className="flex flex-row border-t border-gray-500">
                 <div className=" bg-darkSurfacePrimary flex flex-col items-center justify-center mt-20">
@@ -410,28 +441,32 @@ function EditorInner() {
                             />
                         </div>
                     </div>
-                    <div className="relative h-16">
-                        <div className="flex items-center gap-2 p-4">
-                            <Image
-                                alt="Video"
-                                className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
-                                height={30}
-                                width={30}
-                                src="https://www.svgrepo.com/show/535454/image.svg"
-                            />
+                    {FEATURE_FLAGS.enableImageUpload && (
+                        <div className="relative h-16">
+                            <div className="flex items-center gap-2 p-4">
+                                <Image
+                                    alt="Video"
+                                    className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
+                                    height={30}
+                                    width={30}
+                                    src="https://www.svgrepo.com/show/535454/image.svg"
+                                />
+                            </div>
                         </div>
-                    </div>
-                    <div className="relative h-16">
-                        <div className="flex items-center gap-2 p-4">
-                            <Image
-                                alt="Video"
-                                className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
-                                height={30}
-                                width={30}
-                                src="https://www.svgrepo.com/show/535686/text.svg"
-                            />
+                    )}
+                    {FEATURE_FLAGS.enableText && (
+                        <div className="relative h-16">
+                            <div className="flex items-center gap-2 p-4">
+                                <Image
+                                    alt="Video"
+                                    className="invert h-auto w-auto max-w-[30px] max-h-[30px]"
+                                    height={30}
+                                    width={30}
+                                    src="https://www.svgrepo.com/show/535686/text.svg"
+                                />
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
                 <Timeline />
             </div>

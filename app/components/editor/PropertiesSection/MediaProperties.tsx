@@ -4,11 +4,13 @@ import { useAppSelector } from '../../../store';
 import { setActiveElement, setMediaFiles, setTextElements } from '../../../store/slices/projectSlice';
 import { MediaFile } from '../../../types';
 import { useAppDispatch } from '../../../store';
+import { useTranslation } from '@/app/lib/i18n/useTranslation';
 
 export default function MediaProperties() {
     const { mediaFiles, activeElementIndex } = useAppSelector((state) => state.projectState);
     const mediaFile = mediaFiles[activeElementIndex];
     const dispatch = useAppDispatch();
+    const { t } = useTranslation();
     const onUpdateMedia = (id: string, updates: Partial<MediaFile>) => {
         dispatch(setMediaFiles(mediaFiles.map(media =>
             media.id === id ? { ...media, ...updates } : media
@@ -22,10 +24,10 @@ export default function MediaProperties() {
             <div className="grid grid-cols-2 gap-8">
                 {/* Source Video */}
                 <div className="space-y-2">
-                    <h4 className="font-semibold">Source Video</h4>
+                    <h4 className="font-semibold">{t('properties.sourceVideo')}</h4>
                     <div className="flex items-center space-x-4">
                         <div>
-                            <label className="block text-sm">Start (s)</label>
+                            <label className="block text-sm">{t('properties.startSec')}</label>
                             <input
                                 type="number"
                                 readOnly={true}
@@ -39,7 +41,7 @@ export default function MediaProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">End (s)</label>
+                            <label className="block text-sm">{t('properties.endSec')}</label>
                             <input
                                 type="number"
                                 readOnly={true}
@@ -56,10 +58,10 @@ export default function MediaProperties() {
                 </div>
                 {/* Timing Position */}
                 <div className="space-y-2">
-                    <h4 className="font-semibold">Timing Position</h4>
+                    <h4 className="font-semibold">{t('properties.timingPosition')}</h4>
                     <div className="flex items-center space-x-4">
                         <div>
-                            <label className="block text-sm">Start (s)</label>
+                            <label className="block text-sm">{t('properties.startSec')}</label>
                             <input
                                 type="number"
                                 readOnly={true}
@@ -73,7 +75,7 @@ export default function MediaProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">End (s)</label>
+                            <label className="block text-sm">{t('properties.endSec')}</label>
                             <input
                                 type="number"
                                 readOnly={true}
@@ -89,10 +91,10 @@ export default function MediaProperties() {
                 </div>
                 {/* Visual Properties */}
                 <div className="space-y-6">
-                    <h4 className="font-semibold">Visual Properties</h4>
+                    <h4 className="font-semibold">{t('properties.visualProperties')}</h4>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm">X Position</label>
+                            <label className="block text-sm">{t('properties.xPosition')}</label>
                             <input
                                 type="number"
                                 step="10"
@@ -102,7 +104,7 @@ export default function MediaProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">Y Position</label>
+                            <label className="block text-sm">{t('properties.yPosition')}</label>
                             <input
                                 type="number"
                                 step="10"
@@ -112,7 +114,7 @@ export default function MediaProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">Width</label>
+                            <label className="block text-sm">{t('properties.width')}</label>
                             <input
                                 type="number"
                                 step="10"
@@ -122,7 +124,7 @@ export default function MediaProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">Height</label>
+                            <label className="block text-sm">{t('properties.height')}</label>
                             <input
                                 type="number"
                                 step="10"
@@ -132,7 +134,7 @@ export default function MediaProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">Zindex</label>
+                            <label className="block text-sm">{t('properties.zindex')}</label>
                             <input
                                 type="number"
                                 value={mediaFile.zIndex || 0}
@@ -141,7 +143,7 @@ export default function MediaProperties() {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm">Opacity</label>
+                            <label className="block text-sm">{t('properties.opacity')}</label>
                             <input
                                 type="range"
                                 min="0"
@@ -155,10 +157,10 @@ export default function MediaProperties() {
                 </div>
                 {/* Audio Properties */}
                 {(mediaFile.type === "video" || mediaFile.type === "audio") && <div className="space-y-2">
-                    <h4 className="font-semibold">Audio Properties</h4>
+                    <h4 className="font-semibold">{t('properties.audioProperties')}</h4>
                     <div className="grid grid-cols-1 gap-4">
                         <div>
-                            <label className="block text-sm mb-2 text-white">Volume</label>
+                            <label className="block text-sm mb-2 text-white">{t('properties.volume')}</label>
                             <input
                                 type="range"
                                 min="0"

@@ -8,6 +8,9 @@ export const createBlankProject = (
     return {
         id,
         projectName,
+        // 新規プロジェクトはまだ手動編集も自動設定もされていない。
+        // AddMedia で初回動画 Add 時に projectNameAutoSet=true で setProjectNameAuto される。
+        projectNameAutoSet: false,
         createdAt: now,
         lastModified: now,
         mediaFiles: [],
@@ -30,7 +33,7 @@ export const createBlankProject = (
         future: [],
         exportSettings: {
             resolution: "1080p",
-            quality: "high",
+            quality: "ultra",
             speed: "fastest",
             fps: 30,
             format: "mp4",

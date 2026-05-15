@@ -101,6 +101,13 @@ export interface ProjectState {
     timelineZoom: number;
     enableMarkerTracking: boolean;
     projectName: string;
+    /**
+     * projectName が AddMedia による自動設定で付与されたか。
+     * ユーザーが ProjectName UI を手動編集すると false になる。
+     * AddMedia は autoSet === true の間（または初期値 "Untitled Project"）は
+     * 次の動画 Add でタイトルを上書きする（TIG_PF-10686）。
+     */
+    projectNameAutoSet: boolean;
     createdAt: string;
     lastModified: string;
     activeSection: ActiveElement;
@@ -124,4 +131,6 @@ export const mimeToExt = {
     'image/webp': 'webp',
     'video/webm': 'webm',
     // TODO: Add more as needed
+    // mov/avi/mkv は実機検証 (TIG_PF-10692) で FFmpeg WASM が Aborted となり処理不可。
+    // ブラウザ HTML5 video の demuxer も対応外なので、mp4/webm のみが実用形式。
 };

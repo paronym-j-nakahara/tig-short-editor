@@ -4,11 +4,17 @@ import { listFiles, useAppDispatch, useAppSelector } from "../../../../store";
 import { setMediaFiles, setFilesID } from "../../../../store/slices/projectSlice";
 import { storeFile } from "../../../../store";
 import { categorizeFile } from "../../../../utils/utils";
+import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
+import { useTranslation } from "@/app/lib/i18n/useTranslation";
 import Image from 'next/image';
+
+const ACCEPT_BASE = "video/*,audio/*";
+const ACCEPT_WITH_IMAGE = `${ACCEPT_BASE},image/*`;
 
 export default function AddMedia() {
     const { mediaFiles, filesID } = useAppSelector((state) => state.projectState);
     const dispatch = useAppDispatch();
+    const { t } = useTranslation();
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const newFiles = Array.from(e.target.files || []);
@@ -36,11 +42,11 @@ export default function AddMedia() {
                     width={12}
                     src="https://www.svgrepo.com/show/514275/upload-cloud.svg"
                 />
-                <span className="text-xs">Add Media</span>
+                <span className="text-xs">{t('buttons.addMedia')}</span>
             </label>
             <input
                 type="file"
-                accept="video/*,audio/*,image/*"
+                accept={FEATURE_FLAGS.enableImageUpload ? ACCEPT_WITH_IMAGE : ACCEPT_BASE}
                 multiple
                 onChange={handleFileChange}
                 className="hidden"
