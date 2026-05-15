@@ -74,10 +74,18 @@ export default function MediaList() {
             return;
         }
 
-        toRevoke.forEach(media => {
-            if (media.src) {
-                URL.revokeObjectURL(media.src);
-            }
+        // React の再レンダリングと Remotion の OffthreadVideo / Img の内部参照解放を
+        // 待ってから revoke する。同期 / microtask タイミングで revoke すると、まだ
+        // 描画中の blob URL を Remotion が参照していて "Error loading image with src: blob:..."
+        // を起こすことがあるため、次の paint まで待つ。
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                toRevoke.forEach(media => {
+                    if (media.src) {
+                        URL.revokeObjectURL(media.src);
+                    }
+                });
+            });
         });
 
         toast.success(t('toasts.mediaDeleted'));
