@@ -78,6 +78,7 @@ export const en: Dictionary = {
         cannotSplit: 'Cannot split.',
         cannotDuplicate: 'Cannot duplicate.',
         textAdded: 'Text added successfully.',
+        clipExceedsMaxDuration: 'Added clip exceeds the {max} second limit ({actual} seconds). It will be trimmed at export.',
     },
     errors: {
         projectIdRequired: 'Project ID is required.',

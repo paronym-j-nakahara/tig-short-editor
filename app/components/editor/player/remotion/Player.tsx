@@ -67,7 +67,10 @@ export const PreviewPlayer = () => {
             ref={playerRef}
             component={Composition}
             inputProps={{}}
-            durationInFrames={Math.floor(duration * fps) + 1}
+            // duration=0 (mediaFiles 空) でも Remotion の PlayerSeekBar が
+            // (durationInFrames - 1) で割り算するため最低 2 を保証する。
+            // これを下回ると width=NaN% で React の style warning が出る。
+            durationInFrames={Math.max(2, Math.floor(duration * fps) + 1)}
             compositionWidth={compositionWidth}
             compositionHeight={compositionHeight}
             fps={fps}
