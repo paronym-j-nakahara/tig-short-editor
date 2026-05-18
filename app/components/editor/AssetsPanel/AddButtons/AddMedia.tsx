@@ -4,13 +4,15 @@ import { getFile, useAppDispatch, useAppSelector } from "../../../../store";
 import { setMediaFiles, setProjectNameAuto } from "../../../../store/slices/projectSlice";
 import { setPlayerResolution } from "../../../../store/slices/embedSlice";
 import { storeFile } from "../../../../store";
-import { categorizeFile, probeMediaDimensions, probeVideoHasAudio } from "../../../../utils/utils";
+import { categorizeFile, probeMediaDimensions, probeMediaDuration, probeVideoHasAudio } from "../../../../utils/utils";
 import { useTranslation } from "@/app/lib/i18n/useTranslation";
+import { MAX_PROJECT_DURATION } from "@/app/lib/limits";
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
 const DEFAULT_PROJECT_NAME = "Untitled Project";
-const NEW_CLIP_DURATION_SEC = 30;
+// video/audio の probe に失敗したとき、および image 用の固定 duration。
+const FALLBACK_CLIP_DURATION_SEC = 30;
 
 export default function AddMedia({ fileId }: { fileId: string }) {
     const { mediaFiles, projectName, projectNameAutoSet } = useAppSelector((state) => state.projectState);
@@ -93,10 +95,28 @@ export default function AddMedia({ fileId }: { fileId: string }) {
             posY = Math.round((canvasH - elementH) / 2);
         }
 
-        // 新規クリップは末尾に NEW_CLIP_DURATION_SEC 秒追加。
+        // video/audio は実長を probe してそのクリップ長として使う。image は
+        // 概念的に長さがないので FALLBACK_CLIP_DURATION_SEC を採用。probe 失敗時も同 fallback。
         // 180s 上限のクランプはタイムライン上では行わず、Export 時に FfmpegRender
-        // 側でガードする（TIG_PF-10686）。
-        const clipDuration = NEW_CLIP_DURATION_SEC;
+        // 側でガードする（TIG_PF-10686）。ただし MAX_PROJECT_DURATION を
+        // 超える長尺動画を Add したときはトーストで警告を出す。
+        let clipDuration = FALLBACK_CLIP_DURATION_SEC;
+        if (mediaType === 'video' || mediaType === 'audio') {
+            try {
+                const probed = await probeMediaDuration(file, mediaType);
+                if (probed > 0) {
+                    clipDuration = probed;
+                }
+            } catch (err) {
+                console.warn('Failed to probe media duration, using fallback:', err);
+            }
+        }
+        if (clipDuration > MAX_PROJECT_DURATION) {
+            toast(t('toasts.clipExceedsMaxDuration', {
+                max: MAX_PROJECT_DURATION,
+                actual: Math.round(clipDuration),
+            }), { icon: '⚠️' });
+        }
         const clampedEnd = lastEnd + clipDuration;
         updatedMedia.push({
             id: mediaId,

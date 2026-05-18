@@ -80,6 +80,7 @@ export const ja = {
         cannotSplit: '分割できません',
         cannotDuplicate: '複製できません',
         textAdded: 'テキストを追加しました',
+        clipExceedsMaxDuration: '追加したクリップが {max} 秒の上限を超えています（{actual} 秒）。書き出し時に短縮されます。',
     },
     errors: {
         projectIdRequired: 'プロジェクト ID が必要です。',
