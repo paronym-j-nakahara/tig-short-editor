@@ -19,4 +19,10 @@ export const FEATURE_FLAGS = {
   enableTrackMarkerToggle: false,
   /** Render 中モーダルの Tips 文言（FFmpeg WASM 進捗バーの説明）。 */
   enableRenderTips: false,
+  /**
+   * 左サイドバー（Home / Library / Export 切替アイコン列）の表示。
+   * false の場合は中央パネルを常に Library 固定にし、書き出しは
+   * 「メディア追加」ボタンの横に置いた書き出しボタンからモーダルで起動する。
+   */
+  enableSidebar: false,
 } as const;

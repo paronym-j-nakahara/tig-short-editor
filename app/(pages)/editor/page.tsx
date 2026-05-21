@@ -28,9 +28,10 @@ import { Timeline } from "../../components/editor/timeline/Timline";
 import { PreviewPlayer } from "../../components/editor/player/remotion/Player";
 import { MediaFile } from "@/app/types";
 import ExportList from "../../components/editor/AssetsPanel/tools-section/ExportList";
+import ExportModal from "../../components/editor/render/ExportModal";
 import Image from "next/image";
 import ProjectName from "../../components/editor/player/ProjectName";
-import { categorizeFile, probeMediaDimensions, probeMediaDuration, probeVideoHasAudio } from "@/app/utils/utils";
+import { categorizeFile, probeMediaDimensions, probeMediaDuration, probeVideoHasAudio, sourceDurationFor } from "@/app/utils/utils";
 
 function EditorInner() {
     const searchParams = useSearchParams();
@@ -66,6 +67,12 @@ function EditorInner() {
      * rehydrate との競合を避けるため state ベースで保持し、rehydrate 完了後にマージ反映する。
      */
     const [pendingAssetMediaFiles, setPendingAssetMediaFiles] = useState<MediaFile[]>([]);
+    // 書き出しモーダルの開閉。左サイドバー (Library/Export ナビ) を撤去し、
+    // 書き出しはモーダル化したため (TIG_PF-10705)。
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    // モーダルを一度でも開いたら true。<Ffmpeg /> の ffmpeg-core.wasm 初回ロードを
+    // 開いたタイミングまで遅延させ、以降は unmount せず可視性のみ切替する。
+    const [hasOpenedExport, setHasOpenedExport] = useState(false);
 
     const { activeSection, activeElement } = projectState;
 
@@ -179,6 +186,7 @@ function EditorInner() {
                                 fileId,
                                 startTime: 0,
                                 endTime: duration,
+                                sourceDuration: sourceDurationFor(mediaType, duration),
                                 src: URL.createObjectURL(file),
                                 positionStart,
                                 positionEnd,
@@ -316,12 +324,20 @@ function EditorInner() {
         dispatch(setMediaFiles([...projectState.mediaFiles, ...toAdd]));
     }, [dispatch, pendingAssetMediaFiles, projectState.mediaFiles, currentProjectId]);
 
-    // FEATURE_FLAGS.enableText が false のとき、IndexedDB に保存された
-    // activeSection === "text" が rehydrate されてしまうと中央パネルが空欄になり
-    // ユーザーが抜け出せないので、media に補正する。
+    // 中央パネル分岐の補正:
+    //  - enableSidebar=true: enableText=false なら "text" を "media" に補正（従来通り）
+    //  - enableSidebar=false: 中央パネルは常に Library 固定なので、IndexedDB に
+    //    保存された "text" / "export" のいずれであっても "media" に正規化する
+    //    （正規化しないと従来 UI で開いた IndexedDB を新 UI で開いた時に中央が空になる）
     useEffect(() => {
-        if (!FEATURE_FLAGS.enableText && projectState.activeSection === "text") {
-            dispatch(setActiveSection("media"));
+        if (FEATURE_FLAGS.enableSidebar) {
+            if (!FEATURE_FLAGS.enableText && projectState.activeSection === "text") {
+                dispatch(setActiveSection("media"));
+            }
+        } else {
+            if (projectState.activeSection !== "media") {
+                dispatch(setActiveSection("media"));
+            }
         }
     }, [dispatch, projectState.activeSection]);
 
@@ -334,8 +350,62 @@ function EditorInner() {
         saveProject();
     }, [projectState, currentProjectId, dispatch]);
 
+    // ブラウザバック / マウスジェスチャ / トラックパッド戻り / タブ閉じ / リロード で
+    // 編集内容が失われないよう警告を出す (TIG_PF-10705)。
+    // - popstate: history.pushState でガード entry を 1 個積み、戻り操作を消費してから confirm。
+    //   キャンセル時は再 pushState で巻き戻す。
+    // - beforeunload: タブ閉じ・リロード・URL 直打ち。文言はブラウザがハードコード。
+    // hasContent / t は ref で最新値を保持し、useEffect 再走による pushState 累積と
+    // Strict Mode 二重発火 (dev) を防ぐため deps は空にする。
+    const hasContent = projectState.mediaFiles.length > 0 || projectState.textElements.length > 0;
+    const hasContentRef = useRef(hasContent);
+    const tRef = useRef(t);
+    useEffect(() => { hasContentRef.current = hasContent; }, [hasContent]);
+    useEffect(() => { tRef.current = t; }, [t]);
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const guardState = { __editorNavGuard: true };
+        window.history.pushState(guardState, '', window.location.href);
+
+        const onBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (!hasContentRef.current) return;
+            e.preventDefault();
+            // 一部ブラウザ互換のために returnValue を設定 (Chrome 119+ は preventDefault のみで動く)。
+            e.returnValue = '';
+        };
+
+        const onPopState = () => {
+            if (!hasContentRef.current) {
+                window.removeEventListener('beforeunload', onBeforeUnload);
+                window.removeEventListener('popstate', onPopState);
+                window.history.back();
+                return;
+            }
+            const confirmed = window.confirm(tRef.current('confirm.leaveEditor'));
+            if (confirmed) {
+                window.removeEventListener('beforeunload', onBeforeUnload);
+                window.removeEventListener('popstate', onPopState);
+                window.history.back();
+            } else {
+                window.history.pushState(guardState, '', window.location.href);
+            }
+        };
+
+        window.addEventListener('beforeunload', onBeforeUnload);
+        window.addEventListener('popstate', onPopState);
+        return () => {
+            window.removeEventListener('beforeunload', onBeforeUnload);
+            window.removeEventListener('popstate', onPopState);
+        };
+    }, []);
+
     const handleFocus = (section: "media" | "text" | "export") => {
         dispatch(setActiveSection(section));
+    };
+
+    const openExportModal = () => {
+        setHasOpenedExport(true);
+        setIsExportModalOpen(true);
     };
 
     if (error) {
@@ -364,33 +434,60 @@ function EditorInner() {
                 ) : null
             }
             <div className="flex flex-1 overflow-hidden">
-                <div className="flex-[0.1] min-w-[60px] max-w-[100px] border-r border-gray-700 overflow-y-auto p-4">
-                    <div className="flex flex-col space-y-2">
-                        <HomeButton />
-                        {FEATURE_FLAGS.enableText && <TextButton onClick={() => handleFocus("text")} />}
-                        <LibraryButton onClick={() => handleFocus("media")} />
-                        <ExportButton onClick={() => handleFocus("export")} />
+                {FEATURE_FLAGS.enableSidebar && (
+                    <div className="flex-[0.1] min-w-[60px] max-w-[100px] border-r border-gray-700 overflow-y-auto p-4">
+                        <div className="flex flex-col space-y-2">
+                            <HomeButton />
+                            {FEATURE_FLAGS.enableText && <TextButton onClick={() => handleFocus("text")} />}
+                            <LibraryButton onClick={() => handleFocus("media")} />
+                            <ExportButton onClick={() => handleFocus("export")} />
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <div className="flex-[0.3] min-w-[200px] border-r border-gray-800 overflow-y-auto p-4">
-                    {activeSection === "media" && (
+                    {FEATURE_FLAGS.enableSidebar ? (
+                        <>
+                            {activeSection === "media" && (
+                                <div>
+                                    <h2 className="text-lg flex flex-row gap-2 items-center justify-center font-semibold mb-2">
+                                        <AddMedia />
+                                    </h2>
+                                    <MediaList />
+                                </div>
+                            )}
+                            {FEATURE_FLAGS.enableText && activeSection === "text" && (
+                                <div>
+                                    <AddText />
+                                </div>
+                            )}
+                            {activeSection === "export" && (
+                                <div>
+                                    <h2 className="text-lg font-semibold mb-4">{t('exportPanel.title')}</h2>
+                                    <ExportList />
+                                </div>
+                            )}
+                        </>
+                    ) : (
                         <div>
-                            <h2 className="text-lg flex flex-row gap-2 items-center justify-center font-semibold mb-2">
+                            <div className="flex flex-row gap-2 items-center justify-center mb-2">
                                 <AddMedia />
-                            </h2>
+                                <button
+                                    type="button"
+                                    onClick={openExportModal}
+                                    className="cursor-pointer rounded-full bg-white border border-solid border-transparent transition-colors flex flex-row gap-2 items-center justify-center text-gray-800 hover:bg-[#ccc] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-auto py-2 px-2 sm:px-5 sm:w-auto"
+                                >
+                                    <Image
+                                        alt={t('sidebar.export')}
+                                        className=""
+                                        height={12}
+                                        width={12}
+                                        src="https://www.svgrepo.com/show/486665/export.svg"
+                                    />
+                                    <span className="text-xs">{t('sidebar.export')}</span>
+                                </button>
+                            </div>
                             <MediaList />
-                        </div>
-                    )}
-                    {FEATURE_FLAGS.enableText && activeSection === "text" && (
-                        <div>
-                            <AddText />
-                        </div>
-                    )}
-                    {activeSection === "export" && (
-                        <div>
-                            <h2 className="text-lg font-semibold mb-4">{t('exportPanel.title')}</h2>
-                            <ExportList />
                         </div>
                     )}
                 </div>
@@ -470,6 +567,10 @@ function EditorInner() {
                 </div>
                 <Timeline />
             </div>
+            {/* 書き出しモーダル: 一度開いたら以降は unmount せず可視性のみ切替 (ffmpeg-core ロード保持) */}
+            {hasOpenedExport && (
+                <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
+            )}
         </div>
     );
 }

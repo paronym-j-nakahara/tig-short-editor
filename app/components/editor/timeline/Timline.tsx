@@ -1,6 +1,7 @@
 import { useAppSelector } from "@/app/store";
 import { setMarkerTrack, setTextElements, setMediaFiles, setTimelineZoom, setCurrentTime, setIsPlaying, setActiveElement } from "@/app/store/slices/projectSlice";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { MediaFile, TextElement } from "@/app/types";
+import { memo, useRef } from "react";
 import { useDispatch } from "react-redux";
 import Image from "next/image";
 import Header from "./Header";
@@ -8,23 +9,19 @@ import VideoTimeline from "./elements-timeline/VideoTimeline";
 import ImageTimeline from "./elements-timeline/ImageTimeline";
 import AudioTimeline from "./elements-timeline/AudioTimline";
 import TextTimeline from "./elements-timeline/TextTimeline";
-import { throttle } from 'lodash';
 import GlobalKeyHandlerProps from "../../../components/editor/keys/GlobalKeyHandlerProps";
 import toast from "react-hot-toast";
 import { FEATURE_FLAGS } from "@/app/lib/featureFlags";
 import { useTranslation } from "@/app/lib/i18n/useTranslation";
+import { ZOOM_LEVELS, findNearestZoomIndex } from "./zoomLevels";
 export const Timeline = () => {
     const { currentTime, timelineZoom, enableMarkerTracking, activeElement, activeElementIndex, mediaFiles, textElements, duration, isPlaying } = useAppSelector((state) => state.projectState);
     const dispatch = useDispatch();
     const { t } = useTranslation();
     const timelineRef = useRef<HTMLDivElement>(null)
 
-    const throttledZoom = useMemo(() =>
-        throttle((value: number) => {
-            dispatch(setTimelineZoom(value));
-        }, 100),
-        [dispatch]
-    );
+    // 5 段階ズーム (TIG_PF-10705): 既存 timelineZoom (px/sec) から最も近い段階を逆引きする。
+    const zoomIndex = findNearestZoomIndex(timelineZoom);
 
     const handleSplit = () => {
         let element = null;
@@ -122,9 +119,9 @@ export const Timeline = () => {
     };
 
     const handleDuplicate = () => {
-        let element = null;
-        let elements = null;
-        let setElements = null;
+        let element: MediaFile | TextElement | null = null;
+        let elements: MediaFile[] | TextElement[] | null = null;
+        let setElements: typeof setMediaFiles | typeof setTextElements | null = null;
 
         if (activeElement === 'media') {
             elements = [...mediaFiles];
@@ -141,9 +138,41 @@ export const Timeline = () => {
             return;
         }
 
+        // 重なり防止 (TIG_PF-10705): 元クリップの直後に配置し、同種トラック上で
+        // 他クリップと重なるなら、重ならなくなる位置まで右に押し出す。
+        // - media の同種判定: type が一致するもの (video/audio/image トラックは独立)
+        // - text: 全 textElements が同一トラック
+        // closure 内では null 絞り込みが効かないため、確定済みの element を const に拾い直す。
+        const sourceElement = element;
+        const clipDuration = sourceElement.positionEnd - sourceElement.positionStart;
+        const sameTrackElements = activeElement === 'media'
+            ? (elements as MediaFile[]).filter(
+                m => m.id !== sourceElement.id && m.type === (sourceElement as MediaFile).type
+            )
+            : (elements as TextElement[]).filter(te => te.id !== sourceElement.id);
+        let candidateStart = sourceElement.positionEnd;
+        // 重なる相手が無くなるまで、衝突した相手の positionEnd まで前進。
+        // O(n^2) だが clip 数は実用上少数なので十分。
+        let collision = true;
+        while (collision) {
+            collision = false;
+            for (const other of sameTrackElements) {
+                const overlaps =
+                    candidateStart < other.positionEnd &&
+                    other.positionStart < candidateStart + clipDuration;
+                if (overlaps) {
+                    candidateStart = other.positionEnd;
+                    collision = true;
+                    break;
+                }
+            }
+        }
+
         const duplicatedElement = {
             ...element,
             id: crypto.randomUUID(),
+            positionStart: candidateStart,
+            positionEnd: candidateStart + clipDuration,
         };
 
         if (elements) {
@@ -276,20 +305,21 @@ export const Timeline = () => {
                     </button>
                 </div>
 
-                {/* Timeline Zoom */}
+                {/* Timeline Zoom (5 段階: 0% / 25% / 50% / 75% / 100%) */}
                 <div className="flex flex-row justify-between items-center gap-2 mr-4">
                     <label className="block text-sm mt-1 font-semibold text-white">{t('buttons.zoom')}</label>
                     <span className="text-white text-lg">-</span>
                     <input
                         type="range"
-                        min={2}
-                        max={120}
-                        step="1"
-                        value={timelineZoom}
-                        onChange={(e) => throttledZoom(Number(e.target.value))}
+                        min={0}
+                        max={ZOOM_LEVELS.length - 1}
+                        step={1}
+                        value={zoomIndex}
+                        onChange={(e) => dispatch(setTimelineZoom(ZOOM_LEVELS[Number(e.target.value)].pxPerSec))}
                         className="w-[100px] bg-darkSurfacePrimary border border-white border-opacity-10 shadow-md text-white rounded focus:outline-none focus:border-white-500"
                     />
                     <span className="text-white text-lg">+</span>
+                    <span className="text-white text-xs min-w-[36px] text-right">{ZOOM_LEVELS[zoomIndex].percent}%</span>
                 </div>
             </div>
 

@@ -15,6 +15,13 @@ export interface MediaFile {
     startTime: number;  // within the source video
     src?: string;
     endTime: number;
+    /**
+     * 元素材の総尺 (秒)。video/audio クリップの右端 resize をこの値で
+     * クランプして、素材本来の長さを超えて伸長できないようにする (TIG_PF-10705)。
+     * 後方互換のため optional。未定義の旧 IndexedDB データでは現状通り無制限。
+     * image クリップは概念的に総尺がないため未使用。
+     */
+    sourceDuration?: number;
     positionStart: number;  // position in the final video
     positionEnd: number;
     includeInMerge: boolean;

@@ -32,6 +32,7 @@ export const ja = {
         cancel: 'キャンセル',
         edit: '編集',
         deleteFile: 'ファイルを削除',
+        close: '閉じる',
     },
     properties: {
         mediaProperties: 'メディア設定',
@@ -80,7 +81,7 @@ export const ja = {
         cannotSplit: '分割できません',
         cannotDuplicate: '複製できません',
         textAdded: 'テキストを追加しました',
-        clipExceedsMaxDuration: '追加したクリップが {max} 秒の上限を超えています（{actual} 秒）。書き出し時に短縮されます。',
+        imageNotSupported: '画像ファイルは対応していません',
     },
     errors: {
         projectIdRequired: 'プロジェクト ID が必要です。',
@@ -92,5 +93,8 @@ export const ja = {
     ffmpeg: {
         uploadingToCms: 'CMS にアップロード中... {percent}%',
         tipsExperimental: 'FFmpeg WASM の進捗バーは試験版のため、実際は処理が進んでいても止まって見えることがあります。',
+    },
+    confirm: {
+        leaveEditor: '編集中の内容が保存されていない可能性があります。本当にページを離れますか？',
     },
 };

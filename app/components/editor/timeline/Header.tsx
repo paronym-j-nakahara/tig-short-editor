@@ -1,9 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { useAppSelector } from '../../../store';
+import { findNearestZoomLevel } from './zoomLevels';
 
 const MIN_TIMELINE_DURATION_SEC = 60;
-// timelineZoom (px/sec) がこの値以下なら分単位の目盛りに切替（TIG_PF-10686）
-const MINUTE_SCALE_ZOOM_THRESHOLD = 10;
 // DOM ノード爆発防止の上限（180s 制限撤廃で長尺素材も扱うため、上限なしだと数万ノードに）
 const MAX_TICK_COUNT = 2000;
 
@@ -12,18 +11,18 @@ export const Header = () => {
 
     // タイムライン目盛りは最低 60s 表示。素材が長ければそれに合わせて伸びる。
     const totalSeconds = Math.max(duration + 2, MIN_TIMELINE_DURATION_SEC);
-    const isMinuteScale = timelineZoom < MINUTE_SCALE_ZOOM_THRESHOLD;
+    // 5 段階ズーム (TIG_PF-10705): timelineZoom (px/sec) から最も近いレベルを引いて
+    // minor/major 間隔・ラベル単位を決める。
+    const zoomLevel = findNearestZoomLevel(timelineZoom);
+    const { minorSec: minorInterval, majorSec: majorInterval, labelUnit } = zoomLevel;
 
-    // ティック生成: 分単位なら 10s 間隔（細）+ 60s ごと太線、秒単位なら 0.2s 間隔（細）+ 1s ごと太線。
     // tickCount は MAX_TICK_COUNT で頭打ち（長尺素材の DOM 爆発防止）。
-    const minorInterval = isMinuteScale ? 10 : 0.2;
-    const majorInterval = isMinuteScale ? 60 : 1;
     const tickCount = Math.min(Math.floor(totalSeconds / minorInterval) + 1, MAX_TICK_COUNT);
     const tickMarkers = Array.from({ length: tickCount }, (_, i) => Number((i * minorInterval).toFixed(2)));
 
     const isMajorTick = (marker: number) => marker !== 0 && Math.abs(marker % majorInterval) < 1e-6;
     const labelFor = (marker: number) =>
-        isMinuteScale ? `${Math.round(marker / 60)}m` : `${marker}s`;
+        labelUnit === 'min' ? `${Math.round(marker / 60)}m` : `${marker}s`;
 
     // to track the marker when time changes
     const markerRefs = useRef<HTMLDivElement[]>([]);

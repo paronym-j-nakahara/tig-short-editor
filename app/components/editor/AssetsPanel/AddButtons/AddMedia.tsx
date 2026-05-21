@@ -4,9 +4,8 @@ import { getFile, useAppDispatch, useAppSelector } from "../../../../store";
 import { setMediaFiles, setProjectNameAuto } from "../../../../store/slices/projectSlice";
 import { setPlayerResolution } from "../../../../store/slices/embedSlice";
 import { storeFile } from "../../../../store";
-import { categorizeFile, probeMediaDimensions, probeMediaDuration, probeVideoHasAudio } from "../../../../utils/utils";
+import { categorizeFile, probeMediaDimensions, probeMediaDuration, probeVideoHasAudio, sourceDurationFor } from "../../../../utils/utils";
 import { useTranslation } from "@/app/lib/i18n/useTranslation";
-import { MAX_PROJECT_DURATION } from "@/app/lib/limits";
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
@@ -98,8 +97,7 @@ export default function AddMedia({ fileId }: { fileId: string }) {
         // video/audio は実長を probe してそのクリップ長として使う。image は
         // 概念的に長さがないので FALLBACK_CLIP_DURATION_SEC を採用。probe 失敗時も同 fallback。
         // 180s 上限のクランプはタイムライン上では行わず、Export 時に FfmpegRender
-        // 側でガードする（TIG_PF-10686）。ただし MAX_PROJECT_DURATION を
-        // 超える長尺動画を Add したときはトーストで警告を出す。
+        // 側でガードする（TIG_PF-10686）。
         let clipDuration = FALLBACK_CLIP_DURATION_SEC;
         if (mediaType === 'video' || mediaType === 'audio') {
             try {
@@ -111,12 +109,6 @@ export default function AddMedia({ fileId }: { fileId: string }) {
                 console.warn('Failed to probe media duration, using fallback:', err);
             }
         }
-        if (clipDuration > MAX_PROJECT_DURATION) {
-            toast(t('toasts.clipExceedsMaxDuration', {
-                max: MAX_PROJECT_DURATION,
-                actual: Math.round(clipDuration),
-            }), { icon: '⚠️' });
-        }
         const clampedEnd = lastEnd + clipDuration;
         updatedMedia.push({
             id: mediaId,
@@ -124,6 +116,7 @@ export default function AddMedia({ fileId }: { fileId: string }) {
             fileId: fileId,
             startTime: 0,
             endTime: clipDuration,
+            sourceDuration: sourceDurationFor(mediaType, clipDuration),
             src: URL.createObjectURL(file),
             positionStart: lastEnd,
             positionEnd: clampedEnd,
