@@ -64,6 +64,11 @@ export default function FfmpegRender({ loadFunction, loadFfmpeg, ffmpeg, logMess
         const renderFunction = async () => {
             const params = extractConfigs(exportSettings);
 
+            // TODO(TIG_PF-10733 POC): FEATURE_FLAGS.enableTransitions=true でも書き出し側は未対応。
+            // プレビュー (Remotion <TransitionSeries>) のみ fade トランジションが見える状態で、
+            // 書き出しは引き続き overlay 積み重ね方式。次フェーズで xfade=transition=fade による
+            // 連結に書き換える (隣接 video グループ化 + 出力長 = sum(clip) - (n-1)*duration)。
+
             // catch で参照するため try の外で宣言
             let ffmpegArgs: string[] = [];
             try {

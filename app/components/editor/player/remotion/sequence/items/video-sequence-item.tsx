@@ -26,31 +26,70 @@ interface VideoSequenceItemProps {
     options: SequenceItemOptions;
 }
 
-export const VideoSequenceItem: React.FC<VideoSequenceItemProps> = ({ item, options }) => {
-    const { fps } = options;
-
+/**
+ * 動画クリップの可視部分のみを描画する内部コンポーネント (TIG_PF-10733 POC)。
+ * VideoSequenceItem は外側で <Sequence> を貼って配置するが、TransitionSeries の
+ * 子として使うときは <TransitionSeries.Sequence> が配置を担うので、その内側で
+ * 同じ DOM/Video 出力を共有するために切り出している。
+ */
+export const VideoContent: React.FC<{ item: MediaFile; fps: number }> = ({ item, fps }) => {
     const playbackRate = item.playbackSpeed || 1;
-    const { from, durationInFrames } = calculateFrames(
-        {
-            from: item.positionStart,
-            to: item.positionEnd
-        },
-        fps
-    );
-
-    // TODO: Add crop
-    // const crop = item.crop || {
-    //     x: 0,
-    //     y: 0,
-    //     width: item.width,
-    //     height: item.height
-    // };
-
     const trim = {
         from: (item.startTime) / playbackRate,
-        to: (item.endTime) / playbackRate
+        to: (item.endTime) / playbackRate,
     };
+    return (
+        <AbsoluteFill
+            data-track-item="transition-element"
+            className={`designcombo-scene-item id-${item.id} designcombo-scene-item-type-${item.type}`}
+            style={{
+                pointerEvents: "auto",
+                top: item.y,
+                left: item.x,
+                width: item.width || "100%",
+                height: item.height || "auto",
+                transform: "none",
+                zIndex: item.zIndex,
+                opacity: item?.opacity !== undefined ? item.opacity / 100 : 1,
+                borderRadius: `10px`,
+                overflow: "hidden",
+            }}
+        >
+            <div
+                style={{
+                    width: item.width || "100%",
+                    height: item.height || "auto",
+                    position: "relative",
+                    overflow: "hidden",
+                    pointerEvents: "none",
+                }}
+            >
+                <OffthreadVideo
+                    startFrom={(trim.from) * fps}
+                    endAt={(trim.to) * fps + REMOTION_SAFE_FRAME}
+                    playbackRate={playbackRate}
+                    src={item.src || ""}
+                    volume={item.volume / 100 || 100}
+                    style={{
+                        pointerEvents: "none",
+                        top: 0,
+                        left: 0,
+                        width: item.width || "100%",
+                        height: item.height || "auto",
+                        position: "absolute",
+                    }}
+                />
+            </div>
+        </AbsoluteFill>
+    );
+};
 
+export const VideoSequenceItem: React.FC<VideoSequenceItemProps> = ({ item, options }) => {
+    const { fps } = options;
+    const { from, durationInFrames } = calculateFrames(
+        { from: item.positionStart, to: item.positionEnd },
+        fps
+    );
     return (
         <Sequence
             key={item.id}
@@ -58,51 +97,7 @@ export const VideoSequenceItem: React.FC<VideoSequenceItemProps> = ({ item, opti
             durationInFrames={durationInFrames + REMOTION_SAFE_FRAME}
             style={{ pointerEvents: "none" }}
         >
-            <AbsoluteFill
-                data-track-item="transition-element"
-                className={`designcombo-scene-item id-${item.id} designcombo-scene-item-type-${item.type}`}
-                style={{
-                    pointerEvents: "auto",
-                    top: item.y,
-                    left: item.x,
-                    width: item.width || "100%",
-                    height: item.height || "auto",
-                    transform: "none",
-                    zIndex: item.zIndex,
-                    opacity:
-                        item?.opacity !== undefined
-                            ? item.opacity / 100
-                            : 1,
-                    borderRadius: `10px`, // Default border radius
-                    overflow: "hidden",
-                }}
-            >
-                <div
-                    style={{
-                        width: item.width || "100%",
-                        height: item.height || "auto",
-                        position: "relative",
-                        overflow: "hidden",
-                        pointerEvents: "none",
-                    }}
-                >
-                    <OffthreadVideo
-                        startFrom={(trim.from) * fps}
-                        endAt={(trim.to) * fps + REMOTION_SAFE_FRAME}
-                        playbackRate={playbackRate}
-                        src={item.src || ""}
-                        volume={item.volume / 100 || 100}
-                        style={{
-                            pointerEvents: "none",
-                            top: 0,
-                            left: 0,
-                            width: item.width || "100%", // Default width
-                            height: item.height || "auto", // Default height
-                            position: "absolute"
-                        }}
-                    />
-                </div>
-            </AbsoluteFill>
+            <VideoContent item={item} fps={fps} />
         </Sequence>
     );
 };

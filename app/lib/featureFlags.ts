@@ -19,4 +19,12 @@ export const FEATURE_FLAGS = {
   enableTrackMarkerToggle: false,
   /** Render 中モーダルの Tips 文言（FFmpeg WASM 進捗バーの説明）。 */
   enableRenderTips: false,
+  /**
+   * 動画クリップ間トランジション (POC, TIG_PF-10733)。
+   * on の時、タイムライン上で隣接 (positionEnd === next.positionStart) する video
+   * クリップ間に fade トランジション (固定 1s) を自動適用する。Capcut 方式で
+   * タイムライン表示は連接のまま内部で 1s 重ねるため、全体長は (隣接ペア数 × 1s) 短縮。
+   * プレビュー (Remotion) と書き出し (FFmpeg xfade) の両方に効く。
+   */
+  enableTransitions: false,
 } as const;
