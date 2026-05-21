@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { TextElement, MediaFile, ActiveElement, ExportConfig } from '../../types';
 import { ProjectState } from '../../types';
+import { DEFAULT_TIMELINE_ZOOM } from '../../components/editor/timeline/zoomLevels';
 
 export const initialState: ProjectState = {
     id: crypto.randomUUID(),
@@ -15,7 +16,7 @@ export const initialState: ProjectState = {
     isMuted: false,
     duration: 0,
     zoomLevel: 1,
-    timelineZoom: 30,
+    timelineZoom: DEFAULT_TIMELINE_ZOOM,
     enableMarkerTracking: true,
     activeSection: 'media',
     activeElement: null,

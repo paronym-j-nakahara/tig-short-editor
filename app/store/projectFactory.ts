@@ -1,4 +1,5 @@
 import { ProjectState } from "@/app/types";
+import { DEFAULT_TIMELINE_ZOOM } from "@/app/components/editor/timeline/zoomLevels";
 
 export const createBlankProject = (
     id: string,
@@ -24,7 +25,7 @@ export const createBlankProject = (
         activeElementIndex: 0,
         filesID: [],
         zoomLevel: 1,
-        timelineZoom: 30,
+        timelineZoom: DEFAULT_TIMELINE_ZOOM,
         enableMarkerTracking: true,
         resolution: { width: 1920, height: 1080 },
         fps: 30,

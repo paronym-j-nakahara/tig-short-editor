@@ -8,6 +8,7 @@ import AddMedia from '../AddButtons/AddMedia';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from '@/app/lib/i18n/useTranslation';
+import { isImageUploadBlocked } from '@/app/utils/utils';
 export default function MediaList() {
     const { mediaFiles, filesID } = useAppSelector((state) => state.projectState);
     const dispatch = useAppDispatch();
@@ -24,6 +25,10 @@ export default function MediaList() {
                 for (const fileId of filesID || []) {
                     const file = await getFile(fileId);
                     if (file && mounted) {
+                        // 過去に IndexedDB に保存された image ファイルも Library 一覧から非表示。
+                        if (isImageUploadBlocked(file.type)) {
+                            continue;
+                        }
                         storedFilesArray.push({
                             file: file,
                             id: fileId,

@@ -30,6 +30,7 @@ export const en: Dictionary = {
         cancel: 'Cancel',
         edit: 'Edit',
         deleteFile: 'Delete file',
+        close: 'Close',
     },
     properties: {
         mediaProperties: 'Media Properties',
@@ -78,7 +79,7 @@ export const en: Dictionary = {
         cannotSplit: 'Cannot split.',
         cannotDuplicate: 'Cannot duplicate.',
         textAdded: 'Text added successfully.',
-        clipExceedsMaxDuration: 'Added clip exceeds the {max} second limit ({actual} seconds). It will be trimmed at export.',
+        imageNotSupported: 'Image files are not supported.',
     },
     errors: {
         projectIdRequired: 'Project ID is required.',
@@ -90,5 +91,8 @@ export const en: Dictionary = {
     ffmpeg: {
         uploadingToCms: 'Uploading to CMS... {percent}%',
         tipsExperimental: 'The progress bar is experimental in FFmpeg WASM, so it might appear slow or unresponsive even though the actual processing is not.',
+    },
+    confirm: {
+        leaveEditor: 'Your changes may not be saved. Are you sure you want to leave this page?',
     },
 };

@@ -1,4 +1,5 @@
 import { MediaType } from "../types";
+import { FEATURE_FLAGS } from "../lib/featureFlags";
 export const categorizeFile = (mimeType: string): MediaType => {
 
     if (mimeType.startsWith('video/')) return 'video';
@@ -6,6 +7,22 @@ export const categorizeFile = (mimeType: string): MediaType => {
     if (mimeType.startsWith('image/')) return 'image';
     return 'unknown';
 };
+
+/**
+ * MediaFile.sourceDuration 用の値を決める。video/audio のみ素材総尺を持ち、
+ * image (および unknown) は undefined。MediaFile 生成箇所が複数あるため
+ * 「video/audio のみ持つ」ルールをここに集約する (TIG_PF-10705)。
+ */
+export const sourceDurationFor = (mediaType: MediaType, duration: number): number | undefined =>
+    mediaType === 'video' || mediaType === 'audio' ? duration : undefined;
+
+/**
+ * enableImageUpload=false の時に image upload を拒否すべきかを判定する。
+ * 拒否対象は UploadMedia (upload 時) と MediaList (既存ライブラリ表示時) の 2 箇所で
+ * 同じルールを共有する (TIG_PF-10705)。
+ */
+export const isImageUploadBlocked = (mimeType: string): boolean =>
+    !FEATURE_FLAGS.enableImageUpload && categorizeFile(mimeType) === 'image';
 
 export const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
